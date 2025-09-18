@@ -66,10 +66,14 @@ const defaultConfig = {
 let config = JSON.parse(JSON.stringify(defaultConfig));
 
 document.addEventListener('DOMContentLoaded', function() {
-    reset();
+    initializeEditor();
+});
+
+function initializeEditor() {
+    config = JSON.parse(JSON.stringify(defaultConfig));
     renderEditor();
     updateJsonOutput();
-});
+}
 
 function download() {
     const filteredConfig = getFilteredConfig();
