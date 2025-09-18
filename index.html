@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Playgama Bridge Config Editor</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background-color: #f5f5f5;
+                height: 100vh;
+                overflow: hidden;
+            }
+
+            .container {
+                display: flex;
+                height: 100vh;
+            }
+
+            .panel {
+                flex: 1;
+                padding: 20px;
+                overflow-y: auto;
+            }
+
+            .editor-panel {
+                background-color: white;
+                border-right: 2px solid #e0e0e0;
+            }
+
+            .json-panel {
+                background-color: #f8f9fa;
+            }
+
+            .panel-title {
+                font-size: 24px;
+                font-weight: 600;
+                margin-bottom: 20px;
+                color: #333;
+            }
+
+            .section {
+                margin-bottom: 30px;
+                background: white;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+            .section-title {
+                font-size: 18px;
+                font-weight: 600;
+                margin-bottom: 15px;
+                color: #2c3e50;
+                border-bottom: 2px solid #3498db;
+                padding-bottom: 5px;
+            }
+
+            .platform-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 15px;
+            }
+
+            .platform-item {
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                padding: 15px;
+                background: #fafafa;
+            }
+
+            .platform-name {
+                font-weight: 600;
+                margin-bottom: 10px;
+                color: #34495e;
+            }
+
+            .field-group {
+                margin-bottom: 15px;
+            }
+
+            .field-group:last-child {
+                margin-bottom: 0;
+            }
+
+            .field-label {
+                display: block;
+                font-size: 14px;
+                font-weight: 500;
+                margin-bottom: 5px;
+                color: #555;
+            }
+
+            .field-input {
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                transition: border-color 0.2s;
+            }
+
+            .field-input:focus {
+                outline: none;
+                border-color: #3498db;
+                box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+            }
+
+            .checkbox-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .checkbox-input {
+                width: 16px;
+                height: 16px;
+            }
+
+            .array-section {
+                margin-top: 15px;
+            }
+
+            .array-item {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+                padding: 10px;
+                background: #f8f9fa;
+                border-radius: 4px;
+            }
+
+            .array-input {
+                flex: 1;
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+
+            .btn {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background-color 0.2s;
+            }
+
+            .btn-primary {
+                background-color: #3498db;
+                color: white;
+            }
+
+            .btn-primary:hover {
+                background-color: #2980b9;
+            }
+
+            .btn-danger {
+                background-color: #e74c3c;
+                color: white;
+            }
+
+            .btn-danger:hover {
+                background-color: #c0392b;
+            }
+
+            .btn-success {
+                background-color: #27ae60;
+                color: white;
+            }
+
+            .btn-success:hover {
+                background-color: #229954;
+            }
+
+            .json-output {
+                background: #2c3e50;
+                color: #ecf0f1;
+                padding: 20px;
+                border-radius: 8px;
+                font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                font-size: 14px;
+                line-height: 1.5;
+                white-space: pre-wrap;
+                overflow-x: auto;
+                max-height: calc(100vh - 100px);
+                overflow-y: auto;
+            }
+
+            .json-key {
+                color: #3498db;
+            }
+
+            .json-string {
+                color: #2ecc71;
+            }
+
+            .json-number {
+                color: #f39c12;
+            }
+
+            .json-boolean {
+                color: #e74c3c;
+            }
+
+            .json-null {
+                color: #95a5a6;
+            }
+
+            .controls {
+                margin-bottom: 20px;
+                display: flex;
+                gap: 10px;
+            }
+
+            .global-toggle {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 20px;
+                padding: 15px;
+                background: #e8f4fd;
+                border-radius: 6px;
+                border-left: 4px solid #3498db;
+            }
+
+            .upload-section {
+                margin-bottom: 20px;
+                padding: 20px;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                border: 2px solid #3498db;
+            }
+
+            .json-textarea {
+                width: 100%;
+                height: 300px;
+                padding: 15px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                font-size: 14px;
+                line-height: 1.5;
+                resize: vertical;
+                margin-bottom: 15px;
+                background: #f8f9fa;
+            }
+
+            .json-textarea:focus {
+                outline: none;
+                border-color: #3498db;
+                box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+                background: white;
+            }
+
+            .upload-controls {
+                display: flex;
+                gap: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="panel editor-panel">
+                <h1 class="panel-title">Playgama Bridge Config Editor [v1.25]</h1>
+
+                <div class="section">
+                    <h2 class="section-title">Platforms</h2>
+                    <div class="platform-grid" id="platformsContainer"></div>
+                </div>
+
+                <div class="section">
+                    <h2 class="section-title">Advertisement</h2>
+                    <div id="advertisementContainer"></div>
+                </div>
+
+                <div class="section">
+                    <h2 class="section-title">Payments</h2>
+                    <div class="array-section" id="paymentsContainer"></div>
+                    <button class="btn btn-primary" onclick="addPayment()">Add Payment</button>
+                </div>
+
+                <div class="section">
+                    <h2 class="section-title">Leaderboards</h2>
+                    <div class="array-section" id="leaderboardsContainer"></div>
+                    <button class="btn btn-primary" onclick="addLeaderboard()">Add Leaderboard</button>
+                </div>
+
+                <div class="section">
+                    <h2 class="section-title">General</h2>
+                    <div id="generalContainer"></div>
+                </div>
+
+            </div>
+
+            <div class="panel json-panel">
+                <h1 class="panel-title">Result</h1>
+
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="toggleUpload()">Upload</button>
+                    <button class="btn btn-success" onclick="download()">Download</button>
+                    <button class="btn btn-danger" onclick="reset()">Reset</button>
+                </div>
+
+                <div id="uploadSection" class="upload-section" style="display: none;">
+                    <h3 style="margin-bottom: 10px; color: #2c3e50;">Upload JSON</h3>
+                    <textarea id="jsonTextarea" class="json-textarea" placeholder="Paste your config here..."></textarea>
+                    <div class="upload-controls">
+                        <button class="btn btn-success" onclick="loadJson()">Send</button>
+                        <button class="btn btn-danger" onclick="cancelUpload()">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="json-output" id="jsonOutput"></div>
+            </div>
+        </div>
+
+        <script src="./app.js"></script>
+    </body>
+</html>
