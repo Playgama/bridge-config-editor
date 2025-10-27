@@ -265,16 +265,177 @@
                 display: flex;
                 gap: 10px;
             }
+
+            .platform-selector-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1000;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .platform-selector-overlay.show {
+                display: flex;
+            }
+
+            .platform-selector {
+                background: white;
+                border-radius: 8px;
+                padding: 0;
+                max-width: 600px;
+                width: 90%;
+                max-height: 80vh;
+                overflow: hidden;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                display: flex;
+                flex-direction: column;
+            }
+
+            .platform-selector-header {
+                padding: 20px;
+                border-bottom: 2px solid #e0e0e0;
+                background: #f8f9fa;
+            }
+
+            .platform-selector-title {
+                font-size: 20px;
+                font-weight: 600;
+                margin-bottom: 12px;
+                color: #2c3e50;
+            }
+
+            .platform-search {
+                width: 100%;
+                padding: 10px 12px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                font-size: 14px;
+                transition: border-color 0.2s;
+            }
+
+            .platform-search:focus {
+                outline: none;
+                border-color: #3498db;
+                box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+            }
+
+            .platform-selector-content {
+                flex: 1;
+                overflow-y: auto;
+                padding: 15px 20px;
+            }
+
+            .platform-option {
+                padding: 14px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                margin-bottom: 8px;
+                cursor: pointer;
+                transition: all 0.2s;
+                background: white;
+            }
+
+            .platform-option:hover {
+                background: #e8f4fd;
+                border-color: #3498db;
+                transform: translateX(4px);
+            }
+
+            .platform-option.disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+                background: #f5f5f5;
+            }
+
+            .platform-option.disabled:hover {
+                background: #f5f5f5;
+                border-color: #ddd;
+                transform: none;
+            }
+
+            .platform-option-name {
+                font-weight: 600;
+                font-size: 15px;
+                margin-bottom: 4px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .platform-option-badge {
+                font-size: 11px;
+                padding: 2px 8px;
+                border-radius: 10px;
+                background: #3498db;
+                color: white;
+                font-weight: 500;
+            }
+
+            .platform-option-badge.optional {
+                background: #95a5a6;
+            }
+
+            .platform-option-description {
+                font-size: 12px;
+                color: #7f8c8d;
+                margin-top: 4px;
+            }
+
+            .platform-selector-footer {
+                padding: 15px 20px;
+                border-top: 2px solid #e0e0e0;
+                background: #f8f9fa;
+            }
+
+            .platform-selector-note {
+                font-size: 12px;
+                color: #7f8c8d;
+                margin-bottom: 12px;
+                padding: 10px;
+                background: #fff3cd;
+                border-left: 3px solid #ffc107;
+                border-radius: 4px;
+                line-height: 1.5;
+            }
+
+            .no-platforms-found {
+                text-align: center;
+                padding: 40px 20px;
+                color: #7f8c8d;
+            }
+
+            .empty-state {
+                text-align: center;
+                padding: 40px 20px;
+                color: #7f8c8d;
+            }
+
+            .empty-state-icon {
+                font-size: 48px;
+                margin-bottom: 10px;
+            }
         </style>
     </head>
     <body>
         <div class="container">
             <div class="panel editor-panel">
-                <h1 class="panel-title">Playgama Bridge Config Editor [v1.25]</h1>
+                <h1 class="panel-title">Playgama Bridge Config Editor [v1.26]</h1>
+
+                <div class="section">
+                    <h2 class="section-title">General</h2>
+                    <div id="generalContainer"></div>
+                </div>
 
                 <div class="section">
                     <h2 class="section-title">Platforms</h2>
                     <div class="platform-grid" id="platformsContainer"></div>
+                    <br/>
+                    <button class="btn btn-primary" onclick="openPlatformSelector()">Add Platform</button>
                 </div>
 
                 <div class="section">
@@ -292,11 +453,6 @@
                     <h2 class="section-title">Leaderboards</h2>
                     <div class="array-section" id="leaderboardsContainer"></div>
                     <button class="btn btn-primary" onclick="addLeaderboard()">Add Leaderboard</button>
-                </div>
-
-                <div class="section">
-                    <h2 class="section-title">General</h2>
-                    <div id="generalContainer"></div>
                 </div>
 
             </div>
@@ -320,6 +476,85 @@
                 </div>
 
                 <div class="json-output" id="jsonOutput"></div>
+            </div>
+        </div>
+
+        <div class="platform-selector-overlay" id="platformSelectorOverlay" onclick="closePlatformSelector(event)">
+            <div class="platform-selector" onclick="event.stopPropagation()">
+                <div class="platform-selector-header">
+                    <h3 class="platform-selector-title">Select Platform to Configure</h3>
+                    <input type="text"
+                           class="platform-search"
+                           id="platformSearch"
+                           placeholder="Search platforms..."
+                           oninput="filterPlatforms(this.value)">
+                </div>
+                <div class="platform-selector-content">
+                    <div id="platformSelectorList"></div>
+                </div>
+                <div class="platform-selector-footer">
+                    <div class="platform-selector-note">
+                        💡 <strong>Note:</strong> Only platforms that require configuration are listed here. If a platform doesn't need any settings, it won't appear in this list.
+                    </div>
+                    <button class="btn btn-danger" onclick="closePlatformSelector()">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="platform-selector-overlay" id="overridePlatformSelectorOverlay" onclick="closeOverridePlatformSelector(event)">
+            <div class="platform-selector" onclick="event.stopPropagation()">
+                <div class="platform-selector-header">
+                    <h3 class="platform-selector-title">Select Platform for Override</h3>
+                    <input type="text"
+                           class="platform-search"
+                           id="overridePlatformSearch"
+                           placeholder="Search platforms..."
+                           oninput="filterOverridePlatforms(this.value)">
+                </div>
+                <div class="platform-selector-content">
+                    <div id="overridePlatformSelectorList"></div>
+                </div>
+                <div class="platform-selector-footer">
+                    <button class="btn btn-danger" onclick="closeOverridePlatformSelector()">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="platform-selector-overlay" id="paymentPlatformSelectorOverlay" onclick="closePaymentPlatformSelector(event)">
+            <div class="platform-selector" onclick="event.stopPropagation()">
+                <div class="platform-selector-header">
+                    <h3 class="platform-selector-title">Select Platform for Payment</h3>
+                    <input type="text"
+                           class="platform-search"
+                           id="paymentPlatformSearch"
+                           placeholder="Search platforms..."
+                           oninput="filterPaymentPlatforms(this.value)">
+                </div>
+                <div class="platform-selector-content">
+                    <div id="paymentPlatformSelectorList"></div>
+                </div>
+                <div class="platform-selector-footer">
+                    <button class="btn btn-danger" onclick="closePaymentPlatformSelector()">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="platform-selector-overlay" id="leaderboardPlatformSelectorOverlay" onclick="closeLeaderboardPlatformSelector(event)">
+            <div class="platform-selector" onclick="event.stopPropagation()">
+                <div class="platform-selector-header">
+                    <h3 class="platform-selector-title">Select Platform for Leaderboard</h3>
+                    <input type="text"
+                           class="platform-search"
+                           id="leaderboardPlatformSearch"
+                           placeholder="Search platforms..."
+                           oninput="filterLeaderboardPlatforms(this.value)">
+                </div>
+                <div class="platform-selector-content">
+                    <div id="leaderboardPlatformSelectorList"></div>
+                </div>
+                <div class="platform-selector-footer">
+                    <button class="btn btn-danger" onclick="closeLeaderboardPlatformSelector()">Close</button>
+                </div>
             </div>
         </div>
 
