@@ -1353,6 +1353,9 @@ function getFilteredConfig() {
         const result = {};
         for (const [key, value] of Object.entries(obj)) {
             if (typeof value === 'boolean' && value === false) {
+                if (key === 'sendAnalyticsEvents') {
+                    result[key] = value;
+                }
                 continue;
             } else if (typeof value === 'string' && value.trim() === '') {
                 continue;
