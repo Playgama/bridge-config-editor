@@ -4,7 +4,7 @@ const ALL_PLATFORMS = [
     'facebook', 'yandex', 'game_distribution', 'telegram', 'y8', 'lagged',
     'huawei', 'msn', 'discord', 'gamepush', 'jio_games', 'crazy_games',
     'youtube', 'vk', 'ok', 'absolute_games', 'playgama', 'playdeck',
-    'poki', 'mock', 'qa_tool', 'bitquest', 'portal', 'reddit'
+    'poki', 'mock', 'qa_tool', 'bitquest', 'portal', 'reddit', 'xiaomi'
 ];
 
 let schema = null;
@@ -134,6 +134,7 @@ function renderEditor() {
     }
 
     renderGeneral();
+    renderDevice();
     renderPlatforms();
     renderAdvertisement();
     renderPayments();
@@ -184,6 +185,91 @@ function renderPlatformSelect(fieldName, fieldSchema, fieldValue) {
             </select>
         </div>
     `;
+}
+
+function renderDevice() {
+    const container = document.getElementById('deviceContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const deviceSchema = schema.properties.device;
+    if (!deviceSchema || !deviceSchema.properties) {
+        return;
+    }
+
+    if (!config.device) {
+        config.device = buildDefaultValue(deviceSchema, schema);
+    }
+
+    let html = '';
+
+    // Render useBuiltInOrientationPopup checkbox
+    if (deviceSchema.properties.useBuiltInOrientationPopup) {
+        const fieldValue = config.device.useBuiltInOrientationPopup ?? false;
+        html += renderField(
+            'device.useBuiltInOrientationPopup',
+            'useBuiltInOrientationPopup',
+            deviceSchema.properties.useBuiltInOrientationPopup,
+            fieldValue,
+            false
+        );
+    }
+
+    // Render supportedOrientations as checkboxes
+    if (deviceSchema.properties.supportedOrientations) {
+        const orientations = config.device.supportedOrientations || [];
+        html += `
+            <div class="field-group">
+                <label class="field-label">Supported Orientations</label>
+                <div style="display: flex; gap: 20px; margin-top: 5px;">
+                    <div class="checkbox-group">
+                        <input type="checkbox"
+                               id="device.supportedOrientations.landscape"
+                               class="checkbox-input"
+                               ${orientations.includes('landscape') ? 'checked' : ''}
+                               onchange="updateDeviceOrientation('landscape', this.checked)">
+                        <label for="device.supportedOrientations.landscape" class="field-label" style="margin-bottom: 0;">Landscape</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox"
+                               id="device.supportedOrientations.portrait"
+                               class="checkbox-input"
+                               ${orientations.includes('portrait') ? 'checked' : ''}
+                               onchange="updateDeviceOrientation('portrait', this.checked)">
+                        <label for="device.supportedOrientations.portrait" class="field-label" style="margin-bottom: 0;">Portrait</label>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+function updateDeviceOrientation(orientation, checked) {
+    if (!config.device) {
+        config.device = {};
+    }
+
+    if (!config.device.supportedOrientations) {
+        config.device.supportedOrientations = [];
+    }
+
+    const index = config.device.supportedOrientations.indexOf(orientation);
+
+    if (checked && index === -1) {
+        config.device.supportedOrientations.push(orientation);
+    } else if (!checked && index !== -1) {
+        config.device.supportedOrientations.splice(index, 1);
+    }
+
+    if (config.device.supportedOrientations.length === 0) {
+        delete config.device.supportedOrientations;
+    }
+
+    cleanupEmptyObjects(config);
+    updateJsonOutput();
 }
 
 function renderPlatforms() {
