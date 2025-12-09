@@ -172,9 +172,6 @@
                     "properties": {
                         "adSenseId": {
                             "type": "string"
-                        },
-                        "hostId": {
-                            "type": "string"
                         }
                     }
                 }
