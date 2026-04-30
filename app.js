@@ -4,12 +4,219 @@ const ALL_PLATFORMS = [
     'facebook', 'yandex', 'game_distribution', 'telegram', 'y8', 'lagged',
     'huawei', 'msn', 'discord', 'gamepush', 'jio_games', 'crazy_games',
     'youtube', 'vk', 'ok', 'absolute_games', 'playgama', 'playdeck',
-    'poki', 'mock', 'qa_tool', 'bitquest', 'portal', 'reddit', 'xiaomi'
+    'poki', 'mock', 'qa_tool', 'bitquest', 'portal', 'reddit', 'xiaomi',
+    'dlightek', 'gamesnacks', 'microsoft_store', 'samsung', 'tiktok'
+];
+
+const SECTION_DESCRIPTION_TARGETS = [
+    { path: 'advertisement', elementId: 'advertisementSectionDesc' },
+    { path: 'payments', elementId: 'paymentsSectionDesc' },
+    { path: 'leaderboards', elementId: 'leaderboardsSectionDesc' },
+    { path: 'saas', elementId: 'saasSectionDesc' }
 ];
 
 let schema = null;
 let config = {};
 let defaultConfig = {};
+
+// Tracks the button that owns the currently-visible info popover.
+let activeInfoBtn = null;
+
+// ---------- InfoTooltip helpers ----------
+
+function getFieldDescription(path) {
+    const map = window.FIELD_DESCRIPTIONS;
+    if (!map || !path) return null;
+    const entry = map[path];
+    if (!entry || typeof entry !== 'object') return null;
+    return entry;
+}
+
+function escapeAttr(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function infoBtnHtml(path) {
+    if (!getFieldDescription(path)) return '';
+    return `<button class="info-btn" type="button" tabindex="0" aria-label="More info" data-info-path="${escapeAttr(path)}">?</button>`;
+}
+
+function ensureInfoPopover() {
+    let popover = document.getElementById('infoPopover');
+    if (popover) return popover;
+
+    popover = document.createElement('div');
+    popover.id = 'infoPopover';
+    popover.className = 'info-popover';
+    popover.setAttribute('role', 'tooltip');
+    document.body.appendChild(popover);
+    return popover;
+}
+
+function showInfoPopover(button) {
+    if (!button) return;
+    const path = button.dataset.infoPath;
+    const desc = getFieldDescription(path);
+    if (!desc) return;
+
+    const popover = ensureInfoPopover();
+    // Clear previous content; we insert text via DOM API to avoid XSS.
+    popover.textContent = '';
+
+    const textNode = document.createTextNode(desc.text || '');
+    popover.appendChild(textNode);
+
+    if (desc.link) {
+        popover.appendChild(document.createElement('br'));
+        const link = document.createElement('a');
+        link.className = 'info-popover-link';
+        link.href = desc.link;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Learn more →';
+        popover.appendChild(link);
+    }
+
+    activeInfoBtn = button;
+    popover.classList.add('show');
+    positionInfoPopover(popover, button);
+}
+
+function hideInfoPopover() {
+    const popover = document.getElementById('infoPopover');
+    if (popover) {
+        popover.classList.remove('show');
+    }
+    activeInfoBtn = null;
+}
+
+function positionInfoPopover(popover, button) {
+    if (!popover || !button) return;
+
+    const btnRect = button.getBoundingClientRect();
+    const popoverRect = popover.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const gap = 8;
+
+    // Prefer placing above the button; fall back to below if there is no room.
+    let top = btnRect.top - popoverRect.height - gap;
+    if (top < 8) {
+        top = btnRect.bottom + gap;
+    }
+    if (top + popoverRect.height > viewportHeight - 8) {
+        // Last resort: clamp into viewport.
+        top = Math.max(8, viewportHeight - popoverRect.height - 8);
+    }
+
+    // Center horizontally over the button, then clamp into viewport.
+    let left = btnRect.left + (btnRect.width / 2) - (popoverRect.width / 2);
+    const maxLeft = viewportWidth - popoverRect.width - 8;
+    if (left < 8) left = 8;
+    if (left > maxLeft) left = Math.max(8, maxLeft);
+
+    popover.style.top = `${Math.round(top)}px`;
+    popover.style.left = `${Math.round(left)}px`;
+}
+
+function setupInfoPopoverGlobalHandlers() {
+    ensureInfoPopover();
+
+    document.addEventListener('click', (event) => {
+        const btn = event.target.closest('.info-btn');
+        if (btn) {
+            event.preventDefault();
+            event.stopPropagation();
+            // Toggle: if same button, close; otherwise re-open with the new one.
+            if (activeInfoBtn === btn) {
+                hideInfoPopover();
+            } else {
+                hideInfoPopover();
+                showInfoPopover(btn);
+            }
+            return;
+        }
+
+        // Click outside button and popover should close.
+        if (!event.target.closest('.info-popover')) {
+            hideInfoPopover();
+        }
+    }, true);
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && activeInfoBtn) {
+            hideInfoPopover();
+            event.stopPropagation();
+        }
+    }, true);
+
+    document.addEventListener('focusin', (event) => {
+        const btn = event.target.closest && event.target.closest('.info-btn');
+        if (btn) {
+            // Only show on keyboard focus, not on programmatic mouse focus duplicates.
+            if (activeInfoBtn !== btn) {
+                hideInfoPopover();
+                showInfoPopover(btn);
+            }
+            return;
+        }
+
+        // Focus moved elsewhere; if not into the popover, hide.
+        if (!event.target.closest || !event.target.closest('.info-popover')) {
+            if (activeInfoBtn) {
+                hideInfoPopover();
+            }
+        }
+    });
+
+    window.addEventListener('scroll', () => {
+        if (activeInfoBtn) {
+            const popover = document.getElementById('infoPopover');
+            if (popover) positionInfoPopover(popover, activeInfoBtn);
+        }
+    }, true);
+
+    window.addEventListener('resize', () => {
+        if (activeInfoBtn) {
+            const popover = document.getElementById('infoPopover');
+            if (popover) positionInfoPopover(popover, activeInfoBtn);
+        }
+    });
+}
+
+// ---------- Required-field validation helpers ----------
+
+// Returns true when a value should be considered "missing" for a required field.
+function isMissingRequiredValue(value) {
+    if (value === undefined || value === null) return true;
+    if (typeof value === 'string' && value.trim() === '') return true;
+    return false;
+}
+
+// Returns the input class string and an optional error block for required-field UX.
+function getRequiredValidation(isRequired, value) {
+    const missing = isRequired && isMissingRequiredValue(value);
+    return {
+        invalidClass: missing ? ' invalid' : '',
+        errorHtml: missing ? '<div class="field-error">Required.</div>' : ''
+    };
+}
+
+function applySectionDescriptions() {
+    for (const target of SECTION_DESCRIPTION_TARGETS) {
+        const element = document.getElementById(target.elementId);
+        if (!element) continue;
+
+        const desc = getFieldDescription(target.path);
+        if (desc && desc.text) {
+            element.textContent = desc.text;
+            element.style.display = '';
+        } else {
+            element.textContent = '';
+            element.style.display = 'none';
+        }
+    }
+}
 
 document.addEventListener('DOMContentLoaded', async function() {
     await initializeEditor();
@@ -21,6 +228,8 @@ async function initializeEditor() {
         defaultConfig = buildDefaultConfig(schema);
         config = JSON.parse(JSON.stringify(defaultConfig));
         renderEditor();
+        applySectionDescriptions();
+        setupInfoPopoverGlobalHandlers();
         updateJsonOutput();
     } catch (error) {
         console.error('Failed to initialize editor:', error);
@@ -137,8 +346,10 @@ function renderEditor() {
     renderDevice();
     renderPlatforms();
     renderAdvertisement();
+    renderSaas();
     renderPayments();
     renderLeaderboards();
+    updateRequiredPills();
 }
 
 function renderGeneral() {
@@ -169,15 +380,20 @@ function renderGeneral() {
 function renderPlatformSelect(fieldName, fieldSchema, fieldValue) {
     const label = formatLabel(fieldName);
 
+    // Source platform IDs from the schema so newly added platforms show up automatically
+    const platformIds = (schema && schema.properties && schema.properties.platforms && schema.properties.platforms.properties)
+        ? Object.keys(schema.properties.platforms.properties).slice().sort()
+        : [];
+
     let options = '<option value="">-</option>';
-    for (const platform of ALL_PLATFORMS) {
+    for (const platform of platformIds) {
         const selected = fieldValue === platform ? 'selected' : '';
         options += `<option value="${platform}" ${selected}>${formatLabel(platform)}</option>`;
     }
 
     return `
         <div class="field-group">
-            <label for="${fieldName}" class="field-label">${label}</label>
+            <label for="${fieldName}" class="field-label">${label}${infoBtnHtml(fieldName)}</label>
             <select id="${fieldName}"
                     class="field-input"
                     onchange="updateField('${fieldName}', this.value)">
@@ -221,7 +437,7 @@ function renderDevice() {
         const orientations = config.device.supportedOrientations || [];
         html += `
             <div class="field-group">
-                <label class="field-label">Supported Orientations</label>
+                <label class="field-label">Supported Orientations${infoBtnHtml('device.supportedOrientations')}</label>
                 <div style="display: flex; gap: 20px; margin-top: 5px;">
                     <div class="checkbox-group">
                         <input type="checkbox"
@@ -309,7 +525,7 @@ function renderPlatforms() {
 
         let html = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <div class="platform-name">${formatLabel(platformName)}</div>
+                <div class="platform-name">${formatLabel(platformName)}${infoBtnHtml('platforms.' + platformName)}</div>
                 <button class="btn btn-danger" style="padding: 4px 12px; font-size: 12px;" onclick="removePlatform('${platformName}')">Remove</button>
             </div>
         `;
@@ -349,10 +565,16 @@ function renderAdvertisement() {
         config.advertisement = buildDefaultValue(adSchema, schema);
     }
 
-    let html = '<div class="field-group"><p style="margin-bottom: 10px; color: #34495e;"><b>General Settings</b></p>';
+    // Derive ad-unit subsections from the schema so future ad units appear automatically
+    const adUnitTypes = Object.keys(adSchema.properties).filter((key) => {
+        const propSchema = adSchema.properties[key];
+        return propSchema && propSchema.$ref === '#/definitions/adUnit';
+    });
+
+    let html = `<div class="field-group"><p style="margin-bottom: 10px; color: #34495e; display: inline-flex; align-items: center; gap: 6px;"><b>General Settings</b>${infoBtnHtml('advertisement')}</p>`;
 
     for (const [fieldName, fieldSchema] of Object.entries(adSchema.properties)) {
-        if (fieldName === 'interstitial' || fieldName === 'rewarded') {
+        if (fieldSchema && fieldSchema.$ref === '#/definitions/adUnit') {
             continue;
         }
 
@@ -368,10 +590,10 @@ function renderAdvertisement() {
 
     html += '</div>';
 
-    for (const adType of ['interstitial', 'rewarded']) {
+    for (const adType of adUnitTypes) {
         if (!adSchema.properties[adType]) continue;
 
-        html += `<div class="field-group"><p style="margin-bottom: 10px; color: #34495e;"><b>${formatLabel(adType)}</b></p>`;
+        html += `<div class="field-group"><p style="margin-bottom: 10px; color: #34495e; display: inline-flex; align-items: center; gap: 6px;"><b>${formatLabel(adType)}</b>${infoBtnHtml('advertisement.' + adType)}</p>`;
 
         const adTypeSchema = resolveRef(adSchema.properties[adType], schema);
         if (!config.advertisement[adType]) {
@@ -396,7 +618,7 @@ function renderAdvertisement() {
         }
 
         html += `<div style="margin-top: 15px;">
-            <h4 style="margin-bottom: 10px; color: #34495e; font-size: 14px;">Placements</h4>
+            <h4 style="margin-bottom: 10px; color: #34495e; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">Placements${infoBtnHtml('advertisement.' + adType + '.placements')}</h4>
             <div id="${adType}PlacementsContainer" class="array-section"></div>
             <button class="btn btn-primary" onclick="addPlacement('${adType}')">Add Placement</button>
         </div>`;
@@ -407,11 +629,145 @@ function renderAdvertisement() {
     container.innerHTML = html;
 
     // Render placements for each ad type
-    for (const adType of ['interstitial', 'rewarded']) {
+    for (const adType of adUnitTypes) {
         if (adSchema.properties[adType]) {
             renderPlacements(adType);
         }
     }
+}
+
+function getKnownPlatformIds() {
+    if (!schema || !schema.properties || !schema.properties.platforms || !schema.properties.platforms.properties) {
+        return [];
+    }
+    return Object.keys(schema.properties.platforms.properties).slice().sort();
+}
+
+function renderSaas() {
+    const container = document.getElementById('saasContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const saasSchema = schema.properties.saas;
+    if (!saasSchema || !saasSchema.properties) {
+        return;
+    }
+
+    // Read current values without forcing config.saas to exist on disk
+    const saasValue = config.saas || {};
+    const baseUrl = saasValue.baseUrl || '';
+    const publicToken = saasValue.publicToken || '';
+    const selectedPlatforms = (saasValue.leaderboards && Array.isArray(saasValue.leaderboards.platforms))
+        ? saasValue.leaderboards.platforms.slice()
+        : [];
+
+    let html = '';
+
+    // Base URL
+    html += `
+        <div class="field-group">
+            <label for="saas.baseUrl" class="field-label">Base Url${infoBtnHtml('saas.baseUrl')}</label>
+            <input type="text"
+                   id="saas.baseUrl"
+                   class="field-input"
+                   value="${escapeAttr(baseUrl)}"
+                   onchange="updateField('saas.baseUrl', this.value)">
+        </div>
+    `;
+
+    // Public Token
+    html += `
+        <div class="field-group">
+            <label for="saas.publicToken" class="field-label">Public Token${infoBtnHtml('saas.publicToken')}</label>
+            <input type="text"
+                   id="saas.publicToken"
+                   class="field-input"
+                   value="${escapeAttr(publicToken)}"
+                   onchange="updateField('saas.publicToken', this.value)">
+        </div>
+    `;
+
+    // Leaderboards SaaS Platforms — chip picker
+    const knownIds = getKnownPlatformIds();
+    const remainingIds = knownIds.filter((id) => !selectedPlatforms.includes(id));
+
+    let chipsHtml = '';
+    if (selectedPlatforms.length > 0) {
+        chipsHtml = selectedPlatforms.map((id) => `
+            <span class="chip">
+                ${formatLabel(id)}
+                <button type="button"
+                        class="chip-remove"
+                        aria-label="Remove ${escapeAttr(formatLabel(id))}"
+                        onclick="removeSaasLeaderboardPlatform('${id}')">×</button>
+            </span>
+        `).join('');
+    }
+
+    let pickerHtml = '';
+    if (remainingIds.length > 0) {
+        let options = '<option value="">Select platform...</option>';
+        for (const id of remainingIds) {
+            options += `<option value="${id}">${formatLabel(id)}</option>`;
+        }
+        pickerHtml = `
+            <div class="chip-picker">
+                <select id="saasLeaderboardsPlatformPicker" class="field-input chip-picker-select">${options}</select>
+                <button type="button" class="btn btn-primary chip-add-btn" onclick="addSaasLeaderboardPlatformFromPicker()">+ Add platform</button>
+            </div>
+        `;
+    }
+
+    html += `
+        <div class="field-group">
+            <label class="field-label">Leaderboards Platforms${infoBtnHtml('saas.leaderboards.platforms')}</label>
+            <div class="chip-list" id="saasLeaderboardsPlatformsChips">${chipsHtml}</div>
+            ${pickerHtml}
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+function setSaasLeaderboardsPlatforms(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) {
+        if (config.saas && config.saas.leaderboards) {
+            delete config.saas.leaderboards.platforms;
+        }
+    } else {
+        if (!config.saas) config.saas = {};
+        if (!config.saas.leaderboards) config.saas.leaderboards = {};
+        config.saas.leaderboards.platforms = arr;
+    }
+
+    cleanupEmptyObjects(config);
+    updateJsonOutput();
+    renderSaas();
+}
+
+function addSaasLeaderboardPlatformFromPicker() {
+    const picker = document.getElementById('saasLeaderboardsPlatformPicker');
+    if (!picker) return;
+    const value = picker.value;
+    if (!value) return;
+
+    const current = (config.saas && config.saas.leaderboards && Array.isArray(config.saas.leaderboards.platforms))
+        ? config.saas.leaderboards.platforms.slice()
+        : [];
+
+    if (current.includes(value)) return;
+    current.push(value);
+    setSaasLeaderboardsPlatforms(current);
+}
+
+function removeSaasLeaderboardPlatform(platformId) {
+    const current = (config.saas && config.saas.leaderboards && Array.isArray(config.saas.leaderboards.platforms))
+        ? config.saas.leaderboards.platforms.slice()
+        : [];
+
+    const next = current.filter((id) => id !== platformId);
+    setSaasLeaderboardsPlatforms(next);
 }
 
 function renderPayments() {
@@ -435,15 +791,17 @@ function renderPayments() {
         paymentDiv.style.borderRadius = '6px';
         paymentDiv.style.background = '#fafafa';
 
+        const idValidation = getRequiredValidation(true, payment.id);
         let html = `
             <div style="display: flex; gap: 10px; align-items: center;">
                 <div style="flex: 1;">
-                    <label class="field-label">Product ID *</label>
+                    <label class="field-label">Product ID *${infoBtnHtml('payments.id')}</label>
                     <input type="text"
-                           class="field-input"
+                           class="field-input${idValidation.invalidClass}"
                            value="${payment.id || ''}"
                            onchange="updatePaymentField(${index}, 'id', this.value)"
                            placeholder="Product ID">
+                    ${idValidation.errorHtml}
                 </div>
                 <button class="btn btn-danger" onclick="removePayment(${index})" style="margin-top: 20px;">Remove</button>
             </div>
@@ -451,7 +809,7 @@ function renderPayments() {
 
         html += `
             <div style="margin-top: 10px;">
-                <h4 style="margin-bottom: 10px; color: #34495e; font-size: 13px;">Platform Configurations</h4>
+                <h4 style="margin-bottom: 10px; color: #34495e; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">Platform Configurations${infoBtnHtml('payments')}</h4>
                 <div id="payment_${index}_platforms" style="display: flex; flex-direction: column; gap: 10px;"></div>
                 <button class="btn btn-primary" onclick="addPaymentPlatform(${index})" style="margin-top: 10px; font-size: 12px; padding: 6px 12px;">Add Platform</button>
             </div>
@@ -491,7 +849,7 @@ function renderPaymentPlatforms(paymentIndex) {
 
         let html = `
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h4 style="margin: 0; color: #2c3e50; font-size: 14px; font-weight: 600;">${formatLabel(platformName)}</h4>
+                <h4 style="margin: 0; color: #2c3e50; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">${formatLabel(platformName)}${infoBtnHtml('payments.' + platformName)}</h4>
                 <button class="btn btn-danger" onclick="removePaymentPlatform(${paymentIndex}, '${platformName}')" style="font-size: 11px; padding: 5px 10px;">Remove</button>
             </div>
         `;
@@ -503,10 +861,10 @@ function renderPaymentPlatforms(paymentIndex) {
                 const isRequired = platformSchema.required && platformSchema.required.includes(fieldName);
 
                 html += `<div style="margin-bottom: 4px;">
-                    <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555;">
-                        ${formatLabel(fieldName)}${isRequired ? ' *' : ''}
+                    <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555;">
+                        ${formatLabel(fieldName)}${isRequired ? ' *' : ''}${infoBtnHtml('payments.' + platformName + '.' + fieldName)}
                     </label>
-                    ${renderFieldInput(fieldPath, fieldSchema, fieldValue, paymentIndex)}
+                    ${renderFieldInput(fieldPath, fieldSchema, fieldValue, paymentIndex, isRequired)}
                 </div>`;
             }
         }
@@ -519,6 +877,7 @@ function renderPaymentPlatforms(paymentIndex) {
 function renderField(path, fieldName, fieldSchema, fieldValue, isRequired) {
     const label = formatLabel(fieldName);
     const requiredMark = isRequired ? ' *' : '';
+    const info = infoBtnHtml(path);
 
     if (fieldSchema.type === 'boolean') {
         return `
@@ -529,30 +888,34 @@ function renderField(path, fieldName, fieldSchema, fieldValue, isRequired) {
                            class="checkbox-input"
                            ${fieldValue ? 'checked' : ''}
                            onchange="updateField('${path}', this.checked)">
-                    <label for="${path}" class="field-label">${label}${requiredMark}</label>
+                    <label for="${path}" class="field-label">${label}${requiredMark}${info}</label>
                 </div>
             </div>
         `;
     } else if (fieldSchema.type === 'string') {
+        const v = getRequiredValidation(isRequired, fieldValue);
         return `
             <div class="field-group">
-                <label for="${path}" class="field-label">${label}${requiredMark}</label>
+                <label for="${path}" class="field-label">${label}${requiredMark}${info}</label>
                 <input type="text"
                        id="${path}"
-                       class="field-input"
+                       class="field-input${v.invalidClass}"
                        value="${fieldValue || ''}"
                        onchange="updateField('${path}', this.value)">
+                ${v.errorHtml}
             </div>
         `;
     } else if (fieldSchema.type === 'number') {
+        const v = getRequiredValidation(isRequired, fieldValue);
         return `
             <div class="field-group">
-                <label for="${path}" class="field-label">${label}${requiredMark}</label>
+                <label for="${path}" class="field-label">${label}${requiredMark}${info}</label>
                 <input type="number"
                        id="${path}"
-                       class="field-input"
+                       class="field-input${v.invalidClass}"
                        value="${fieldValue || ''}"
                        onchange="updateField('${path}', parseFloat(this.value) || 0)">
+                ${v.errorHtml}
             </div>
         `;
     }
@@ -560,21 +923,22 @@ function renderField(path, fieldName, fieldSchema, fieldValue, isRequired) {
     return '';
 }
 
-function renderFieldInput(fieldPath, fieldSchema, fieldValue, paymentIndex) {
+function renderFieldInput(fieldPath, fieldSchema, fieldValue, paymentIndex, isRequired) {
     const fullPath = `payments.${paymentIndex}.${fieldPath}`;
+    const v = getRequiredValidation(isRequired, fieldValue);
 
     if (fieldSchema.type === 'string') {
         return `<input type="text"
-                       class="field-input"
+                       class="field-input${v.invalidClass}"
                        value="${fieldValue || ''}"
                        onchange="updateField('${fullPath}', this.value)"
-                       style="width: 100%;">`;
+                       style="width: 100%;">${v.errorHtml}`;
     } else if (fieldSchema.type === 'number') {
         return `<input type="number"
-                       class="field-input"
+                       class="field-input${v.invalidClass}"
                        value="${fieldValue || ''}"
                        onchange="updateField('${fullPath}', parseFloat(this.value) || null)"
-                       style="width: 100%;">`;
+                       style="width: 100%;">${v.errorHtml}`;
     } else if (fieldSchema.type === 'boolean') {
         return `<input type="checkbox"
                        class="checkbox-input"
@@ -835,15 +1199,17 @@ function renderLeaderboards() {
         leaderboardDiv.style.borderRadius = '6px';
         leaderboardDiv.style.background = '#fafafa';
 
+        const lbIdValidation = getRequiredValidation(true, leaderboard.id);
         let html = `
             <div style="display: flex; gap: 10px; align-items: center;">
                 <div style="flex: 1;">
-                    <label class="field-label">Leaderboard ID *</label>
+                    <label class="field-label">Leaderboard ID *${infoBtnHtml('leaderboards.id')}</label>
                     <input type="text"
-                           class="field-input"
+                           class="field-input${lbIdValidation.invalidClass}"
                            value="${leaderboard.id || ''}"
                            onchange="updateLeaderboardField(${index}, 'id', this.value)"
                            placeholder="Leaderboard ID">
+                    ${lbIdValidation.errorHtml}
                 </div>
                 <button class="btn btn-danger" onclick="removeLeaderboard(${index})" style="margin-top: 20px;">Remove</button>
             </div>
@@ -859,7 +1225,7 @@ function renderLeaderboards() {
                                class="checkbox-input"
                                ${isMainValue ? 'checked' : ''}
                                onchange="updateLeaderboardField(${index}, 'isMain', this.checked)">
-                        <label for="leaderboard_${index}_isMain" class="field-label">Is Main</label>
+                        <label for="leaderboard_${index}_isMain" class="field-label">Is Main${infoBtnHtml('leaderboards.isMain')}</label>
                     </div>
                 </div>
             `;
@@ -867,7 +1233,7 @@ function renderLeaderboards() {
 
         html += `
             <div style="margin-top: 10px;">
-                <h4 style="margin-bottom: 10px; color: #34495e; font-size: 13px;">Platform Overrides</h4>
+                <h4 style="margin-bottom: 10px; color: #34495e; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">Platform Overrides${infoBtnHtml('leaderboards')}</h4>
                 <div id="leaderboard_${index}_platforms" style="display: flex; flex-direction: column; gap: 10px;"></div>
                 <button class="btn btn-primary" onclick="addLeaderboardPlatform(${index})" style="margin-top: 10px; font-size: 12px; padding: 6px 12px;">Add Platform Override</button>
             </div>
@@ -948,7 +1314,7 @@ function renderLeaderboardPlatforms(leaderboardIndex) {
         platformDiv.innerHTML = `
             <div style="flex: 0.4;">
                 <label style="display: block; font-size: 11px; font-weight: 500; color: #7f8c8d; margin-bottom: 4px;">Platform</label>
-                <div style="font-size: 13px; font-weight: 600; color: #2c3e50;">${formatLabel(platformName)}</div>
+                <div style="font-size: 13px; font-weight: 600; color: #2c3e50; display: inline-flex; align-items: center; gap: 6px;">${formatLabel(platformName)}${infoBtnHtml('leaderboards.' + platformName)}</div>
             </div>
             <div style="flex: 0.6;">
                 <label style="display: block; font-size: 11px; font-weight: 500; color: #7f8c8d; margin-bottom: 4px;">Override ID</label>
@@ -1126,15 +1492,17 @@ function renderPlacements(adType) {
         placementDiv.style.borderRadius = '6px';
         placementDiv.style.background = '#fafafa';
 
+        const placementIdValidation = getRequiredValidation(true, placement.id);
         let html = `
             <div style="display: flex; gap: 10px; align-items: center;">
                 <div style="flex: 1;">
-                    <label class="field-label">Placement ID *</label>
+                    <label class="field-label">Placement ID *${infoBtnHtml('adPlacement.id')}</label>
                     <input type="text"
-                           class="field-input"
+                           class="field-input${placementIdValidation.invalidClass}"
                            value="${placement.id || ''}"
                            onchange="updatePlacementField('${adType}', ${index}, 'id', this.value)"
                            placeholder="Placement ID">
+                    ${placementIdValidation.errorHtml}
                 </div>
                 <button class="btn btn-danger" onclick="removePlacement('${adType}', ${index})" style="margin-top: 20px;">Remove</button>
             </div>
@@ -1178,7 +1546,7 @@ function renderPlatformOverrides(adType, placementIndex) {
         overrideDiv.innerHTML = `
             <div style="flex: 0.4;">
                 <label style="display: block; font-size: 11px; font-weight: 500; color: #7f8c8d; margin-bottom: 4px;">Platform</label>
-                <div style="font-size: 13px; font-weight: 600; color: #2c3e50;">${formatLabel(key)}</div>
+                <div style="font-size: 13px; font-weight: 600; color: #2c3e50; display: inline-flex; align-items: center; gap: 6px;">${formatLabel(key)}${infoBtnHtml('adPlacement.' + key)}</div>
             </div>
             <div style="flex: 0.6;">
                 <label style="display: block; font-size: 11px; font-weight: 500; color: #7f8c8d; margin-bottom: 4px;">Override ID</label>
@@ -1472,6 +1840,174 @@ function updateJsonOutput() {
     const jsonString = JSON.stringify(filteredConfig, null, 2);
     const highlightedJson = highlightJson(jsonString);
     output.innerHTML = highlightedJson;
+
+    updateRequiredPills();
+}
+
+// ---------- Section missing-required pills ----------
+
+function countPlatformsMissing() {
+    if (!schema || !schema.properties || !schema.properties.platforms || !schema.properties.platforms.properties) {
+        return 0;
+    }
+    if (!config.platforms) return 0;
+
+    let total = 0;
+    const platformsSchema = schema.properties.platforms.properties;
+
+    for (const [platformName, platformValue] of Object.entries(config.platforms)) {
+        const platformSchema = platformsSchema[platformName];
+        if (!platformSchema) continue;
+        const requiredFields = platformSchema.required || [];
+        for (const fieldName of requiredFields) {
+            if (isMissingRequiredValue(platformValue ? platformValue[fieldName] : undefined)) {
+                total += 1;
+            }
+        }
+    }
+
+    return total;
+}
+
+function countAdvertisementMissing() {
+    if (!schema || !schema.properties || !schema.properties.advertisement) return 0;
+    const adSchema = schema.properties.advertisement;
+    if (!adSchema.properties) return 0;
+    if (!config.advertisement) return 0;
+
+    let total = 0;
+
+    const adUnitTypes = Object.keys(adSchema.properties).filter((key) => {
+        const propSchema = adSchema.properties[key];
+        return propSchema && propSchema.$ref === '#/definitions/adUnit';
+    });
+
+    for (const adType of adUnitTypes) {
+        const unit = config.advertisement[adType];
+        if (!unit) continue;
+        const placements = Array.isArray(unit.placements) ? unit.placements : [];
+        for (const placement of placements) {
+            if (!placement || isMissingRequiredValue(placement.id)) {
+                total += 1;
+            }
+        }
+    }
+
+    return total;
+}
+
+function countPaymentsMissing() {
+    if (!schema || !schema.properties || !schema.properties.payments) return 0;
+    if (!Array.isArray(config.payments)) return 0;
+
+    const paymentItemSchema = resolveRef(schema.properties.payments.items, schema);
+    if (!paymentItemSchema || !paymentItemSchema.properties) return 0;
+
+    let total = 0;
+
+    for (const payment of config.payments) {
+        if (!payment) continue;
+        if (isMissingRequiredValue(payment.id)) total += 1;
+
+        for (const [platformName, platformValue] of Object.entries(payment)) {
+            if (platformName === 'id') continue;
+            const platformSchema = paymentItemSchema.properties[platformName];
+            if (!platformSchema) continue;
+            const requiredFields = platformSchema.required || [];
+            for (const fieldName of requiredFields) {
+                if (isMissingRequiredValue(platformValue ? platformValue[fieldName] : undefined)) {
+                    total += 1;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+function countLeaderboardsMissing() {
+    if (!Array.isArray(config.leaderboards)) return 0;
+
+    let total = 0;
+    for (const leaderboard of config.leaderboards) {
+        if (!leaderboard) continue;
+        if (isMissingRequiredValue(leaderboard.id)) total += 1;
+    }
+
+    return total;
+}
+
+function setRequiredPill(elementId, count) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    if (count > 0) {
+        el.textContent = `${count} missing`;
+        el.hidden = false;
+    } else {
+        el.textContent = '';
+        el.hidden = true;
+    }
+}
+
+function updateRequiredPills() {
+    setRequiredPill('platformsRequiredPill', countPlatformsMissing());
+    setRequiredPill('advertisementRequiredPill', countAdvertisementMissing());
+    setRequiredPill('paymentsRequiredPill', countPaymentsMissing());
+    setRequiredPill('leaderboardsRequiredPill', countLeaderboardsMissing());
+}
+
+// ---------- Copy JSON to clipboard ----------
+
+let copyFeedbackTimer = null;
+
+async function copyJsonToClipboard() {
+    const btn = document.getElementById('copyJsonBtn');
+    const json = JSON.stringify(getFilteredConfig(), null, 2);
+
+    let copied = false;
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(json);
+            copied = true;
+        }
+    } catch (err) {
+        copied = false;
+    }
+
+    if (!copied) {
+        // Fallback for environments without async clipboard support.
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = json;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            copied = true;
+        } catch (err) {
+            copied = false;
+        }
+    }
+
+    if (!btn) return;
+
+    if (copied) {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+    } else {
+        btn.textContent = 'Failed';
+    }
+
+    if (copyFeedbackTimer) {
+        clearTimeout(copyFeedbackTimer);
+    }
+    copyFeedbackTimer = setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+        copyFeedbackTimer = null;
+    }, 1500);
 }
 
 function highlightJson(json) {
