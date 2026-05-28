@@ -640,7 +640,11 @@ function getKnownPlatformIds() {
     if (!schema || !schema.properties || !schema.properties.platforms || !schema.properties.platforms.properties) {
         return [];
     }
-    return Object.keys(schema.properties.platforms.properties).slice().sort();
+    const ids = Object.keys(schema.properties.platforms.properties);
+    if (!ids.includes('playgama')) {
+        ids.push('playgama');
+    }
+    return ids.sort();
 }
 
 function renderSaas() {
