@@ -553,6 +553,9 @@
                 "msn": {
                     "type": "string"
                 },
+                "playgama": {
+                    "type": "string"
+                },
                 "qa_tool": {
                     "type": "string"
                 },
