@@ -174,6 +174,69 @@
                             "type": "string"
                         }
                     }
+                },
+                "dlightek": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "appKey": {
+                            "type": "string"
+                        },
+                        "adSenseId": {
+                            "type": "string"
+                        },
+                        "adChannel": {
+                            "type": "string"
+                        },
+                        "testMode": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "gamesnacks": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {}
+                },
+                "microsoft_store": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "gameId",
+                        "playgamaAdsId"
+                    ],
+                    "properties": {
+                        "gameId": {
+                            "type": "string"
+                        },
+                        "playgamaAdsId": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "samsung": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "admobInterstitialAdUnitId": {
+                            "type": "string"
+                        },
+                        "admobRewardedAdUnitId": {
+                            "type": "string"
+                        },
+                        "gameTitle": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "tiktok": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "clientKey": {
+                            "type": "string"
+                        }
+                    }
                 }
             }
         },
@@ -190,6 +253,9 @@
                 "banner": {
                     "$ref": "#/definitions/adUnit"
                 },
+                "advancedBanners": {
+                    "$ref": "#/definitions/adUnit"
+                },
                 "useBuiltInErrorPopup": {
                     "type": "boolean",
                     "default": true
@@ -200,6 +266,10 @@
                 "minimumDelayBetweenInterstitial": {
                     "type": "number",
                     "description": "Minimum delay in milliseconds between interstitial ads"
+                },
+                "initialInterstitialDelay": {
+                    "type": "number",
+                    "description": "Delay in milliseconds before the first interstitial ad can be shown after game start"
                 }
             }
         },
@@ -243,6 +313,32 @@
                     "items": {
                         "type": "string",
                         "enum": ["landscape", "portrait"]
+                    }
+                }
+            }
+        },
+        "saas": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "baseUrl": {
+                    "type": "string",
+                    "description": "Override the default Playgama SaaS API base URL"
+                },
+                "publicToken": {
+                    "type": "string",
+                    "description": "Public token for Playgama SaaS API authentication"
+                },
+                "leaderboards": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "platforms": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
@@ -357,6 +453,21 @@
                     "type": "string"
                 },
                 "reddit": {
+                    "type": "string"
+                },
+                "dlightek": {
+                    "type": "string"
+                },
+                "gamesnacks": {
+                    "type": "string"
+                },
+                "microsoft_store": {
+                    "type": "string"
+                },
+                "samsung": {
+                    "type": "string"
+                },
+                "tiktok": {
                     "type": "string"
                 }
             }
@@ -566,6 +677,18 @@
                     "type": "string"
                 },
                 "youtube": {
+                    "type": "string"
+                },
+                "discord": {
+                    "type": "string"
+                },
+                "playgama": {
+                    "type": "string"
+                },
+                "poki": {
+                    "type": "string"
+                },
+                "crazy_games": {
                     "type": "string"
                 }
             }
