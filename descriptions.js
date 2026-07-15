@@ -1,9 +1,12 @@
 /* eslint-disable */
-// Human-readable help text for Playgama Bridge config fields.
+// Human-readable help text for Playgama Bridge config fields (SDK v2).
 // Keys are dot-paths matching the structure used by app.js.
 // Each entry: { text, link? } — keep text to 1–2 short sentences.
 window.FIELD_DESCRIPTIONS = {
     // ----- General -----
+    'debug': {
+        text: 'Enable SDK debug logging in the browser console. Default: false.',
+    },
     'sendAnalyticsEvents': {
         text: 'When enabled, the SDK reports gameplay events to Playgama analytics. Default: true.',
     },
@@ -14,18 +17,36 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Hide the Playgama loading logo shown before the game starts. Default: false.',
     },
     'showFullLoadingLogo': {
-        text: 'Show the full Playgama logo during loading instead of the compact version. Default: true.',
+        text: 'Show the full Playgama logo during loading instead of the compact version. Ignored on Yandex and Y8. Default: false.',
+    },
+    'showLoadingText': {
+        text: 'Show a loading text line on the loading screen. Always enabled on Xiaomi. Default: false.',
+    },
+    'remoteConfigUrl': {
+        text: 'URL of a remotely hosted bridge config. When set, the SDK fetches it on start and it replaces the local config (except forciblySetPlatformId and remoteConfigUrl).',
+    },
+    'remoteConfigTimeout': {
+        text: 'Timeout in milliseconds for the remote config fetch. On timeout the cached or local config is used. Default: 2000.',
+    },
+    'remoteConfigTtl': {
+        text: 'How long in milliseconds the fetched remote config is cached in localStorage. Default: 3600000 (1 hour).',
+    },
+    'game.adaptToSafeArea': {
+        text: 'Automatically adapt the game canvas to the device safe area (notches, rounded corners). Default: false.',
     },
 
     // ----- Device -----
     'device.useBuiltInOrientationPopup': {
-        text: 'Show the built-in popup that asks the player to rotate the device when the current orientation is not supported. Available and works only on some platforms. Default: false.',
+        text: 'Show the built-in popup that asks the player to rotate the device when the current orientation is not supported. Shown only when exactly one orientation is supported, on mobile/tablet. Default: false.',
     },
     'device.supportedOrientations': {
         text: 'Orientations the game supports. Allowed values: "landscape", "portrait". If empty, both are accepted.',
     },
 
     // ----- Platforms (section-level) -----
+    'platforms': {
+        text: 'Platform-specific settings. Any root config section (advertisement, crossPromo, device, ...) can also be placed inside a platform section to override it for that platform only.',
+    },
     'platforms.game_distribution': {
         text: 'Settings for the GameDistribution platform.',
     },
@@ -67,9 +88,6 @@ window.FIELD_DESCRIPTIONS = {
     },
     'platforms.dlightek': {
         text: 'Settings for the DLightek platform.',
-    },
-    'platforms.gamesnacks': {
-        text: 'Settings for the GameSnacks platform. No configuration is required.',
     },
     'platforms.microsoft_store': {
         text: 'Settings for games distributed via the Microsoft Store.',
@@ -117,7 +135,7 @@ window.FIELD_DESCRIPTIONS = {
 
     // ----- Platforms.msn -----
     'platforms.msn.gameId': {
-        text: 'Required. MSN Games game id. Get it from your MSN Games partner contact.',
+        text: 'Required. MSN Games game id, used for storage, payments and advertisement. Get it from your MSN Games partner contact.',
     },
 
     // ----- Platforms.discord -----
@@ -140,18 +158,18 @@ window.FIELD_DESCRIPTIONS = {
 
     // ----- Platforms.crazy_games -----
     'platforms.crazy_games.xsollaProjectId': {
-        text: 'Xsolla project id used for CrazyGames in-game purchases. Get it from your Xsolla publisher account.',
+        text: 'Xsolla project id used for CrazyGames in-game purchases. Payments are unavailable without it. Get it from your Xsolla publisher account.',
     },
     'platforms.crazy_games.isSandbox': {
         text: 'Use the CrazyGames sandbox environment for testing. Default: false.',
     },
     'platforms.crazy_games.useUserToken': {
-        text: 'Send the CrazyGames user auth token with SDK calls so you can verify the player on your backend. Default: false.',
+        text: 'Fetch the CrazyGames user auth token (JWT) so you can verify the player on your backend. Default: false.',
     },
 
     // ----- Platforms.facebook -----
     'platforms.facebook.subscribeForNotificationsOnStart': {
-        text: 'Automatically prompt the player to subscribe to Facebook bot notifications on game start. Default: true.',
+        text: 'Automatically prompt the player to subscribe to Facebook bot notifications on game start. Default: false.',
     },
 
     // ----- Platforms.yandex -----
@@ -161,15 +179,18 @@ window.FIELD_DESCRIPTIONS = {
 
     // ----- Platforms.xiaomi -----
     'platforms.xiaomi.adSenseId': {
-        text: 'Google AdSense publisher id used for Xiaomi mibrowser ads. Get it from your Google AdSense account.',
+        text: 'Required. Google AdSense publisher id used for Xiaomi mibrowser ads. Get it from your Google AdSense account.',
+    },
+    'platforms.xiaomi.testMode': {
+        text: 'Enable AdSense test mode so test ads are served instead of real ones. Disable for production.',
     },
 
     // ----- Platforms.dlightek -----
     'platforms.dlightek.appKey': {
-        text: 'DLightek application key. Get it from your DLightek partner contact.',
+        text: 'Required. DLightek application key. Get it from your DLightek partner contact.',
     },
     'platforms.dlightek.adSenseId': {
-        text: 'Google AdSense publisher id used for DLightek ads. Get it from your Google AdSense account.',
+        text: 'Required. Google AdSense publisher id used for DLightek ads. Get it from your Google AdSense account.',
     },
     'platforms.dlightek.adChannel': {
         text: 'AdSense ad channel id used for DLightek ad requests. Get it from your Google AdSense account.',
@@ -207,16 +228,19 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Cross-platform ad configuration. Define ad units (interstitial, rewarded, banner, advanced banners) and per-platform placement ids.',
     },
     'advertisement.useBuiltInErrorPopup': {
-        text: 'Show the built-in error popup when an ad fails to load or display. Default: true.',
+        text: 'Show the built-in info popup when an ad is closed too early or fails. Default: false.',
     },
-    'advertisement.backfillId': {
-        text: 'Playgama backfill ad id used when the platform has no ad to serve. Get it from your Playgama manager.',
+    'advertisement.useAdvertisementErrorPopup': {
+        text: 'Show the ad-failure popup when an ad fails to display. When not set, the platform default is used.',
+    },
+    'advertisement.builtInErrorPopupCooldown': {
+        text: 'Cooldown in seconds between built-in interstitial failure popups. Default: 180.',
     },
     'advertisement.minimumDelayBetweenInterstitial': {
-        text: 'Minimum delay in milliseconds between two interstitial ads.',
+        text: 'Minimum delay in seconds between two interstitial ads. Default: 60.',
     },
     'advertisement.initialInterstitialDelay': {
-        text: 'Delay in milliseconds before the first interstitial ad can be shown after the game starts.',
+        text: 'Delay in seconds before the first interstitial ad can be shown after the game starts.',
     },
     'advertisement.interstitial': {
         text: 'Interstitial ad unit configuration: placements and per-platform overrides.',
@@ -228,12 +252,12 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Banner ad unit configuration: placements and per-platform overrides.',
     },
     'advertisement.advancedBanners': {
-        text: 'Advanced banner ad unit configuration: placements and per-platform overrides.',
+        text: 'Advanced banners: condition-driven banner configs keyed by placement name (e.g. "mobile:portrait", "w>800"). Placement entries are free-form — edit them via JSON upload.',
     },
 
     // ----- Per-ad-unit fields -----
     'advertisement.interstitial.preloadOnStart': {
-        text: 'Preload an interstitial ad as soon as the SDK initializes so it is ready to display sooner.',
+        text: 'Placement id of the interstitial to preload right after SDK initialization so it is ready to display sooner.',
     },
     'advertisement.interstitial.placementFallback': {
         text: 'Placement id used when the requested placement is not available. Must match one of the placements[].id values.',
@@ -246,7 +270,7 @@ window.FIELD_DESCRIPTIONS = {
     },
 
     'advertisement.rewarded.preloadOnStart': {
-        text: 'Preload a rewarded ad as soon as the SDK initializes so it is ready to display sooner.',
+        text: 'Placement id of the rewarded ad to preload right after SDK initialization so it is ready to display sooner.',
     },
     'advertisement.rewarded.placementFallback': {
         text: 'Placement id used when the requested placement is not available. Must match one of the placements[].id values.',
@@ -258,9 +282,6 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Disable rewarded ads entirely.',
     },
 
-    'advertisement.banner.preloadOnStart': {
-        text: 'Preload a banner ad as soon as the SDK initializes so it is ready to display sooner.',
-    },
     'advertisement.banner.placementFallback': {
         text: 'Placement id used when the requested placement is not available. Must match one of the placements[].id values.',
     },
@@ -271,14 +292,8 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Disable banner ads entirely.',
     },
 
-    'advertisement.advancedBanners.preloadOnStart': {
-        text: 'Preload advanced banners as soon as the SDK initializes so they are ready to display sooner.',
-    },
     'advertisement.advancedBanners.placementFallback': {
-        text: 'Placement id used when the requested placement is not available. Must match one of the placements[].id values.',
-    },
-    'advertisement.advancedBanners.placements': {
-        text: 'List of advanced banner placements with their per-platform ad ids.',
+        text: 'Placement name used when the requested placement is not available.',
     },
     'advertisement.advancedBanners.disable': {
         text: 'Disable advanced banners entirely.',
@@ -333,9 +348,6 @@ window.FIELD_DESCRIPTIONS = {
     'adPlacement.ok': {
         text: 'OK Games ad placement id. Get it from your OK developer console.',
     },
-    'adPlacement.absolute_games': {
-        text: 'Absolute Games ad placement id. Get it from your Absolute Games partner contact.',
-    },
     'adPlacement.playgama': {
         text: 'Playgama ad placement id. Get it from your Playgama manager.',
     },
@@ -351,8 +363,8 @@ window.FIELD_DESCRIPTIONS = {
     'adPlacement.qa_tool': {
         text: 'Playgama QA tool ad placement id used for internal testing.',
     },
-    'adPlacement.bitquest': {
-        text: 'Bitquest ad placement id. Get it from your Bitquest partner contact.',
+    'adPlacement.standalone': {
+        text: 'Standalone build ad placement id.',
     },
     'adPlacement.portal': {
         text: 'White-label portal ad placement id. Get it from your portal operator.',
@@ -375,6 +387,98 @@ window.FIELD_DESCRIPTIONS = {
     'adPlacement.tiktok': {
         text: 'TikTok ad placement id. Get it from the TikTok Developers portal.',
     },
+    'adPlacement.xiaomi': {
+        text: 'Xiaomi (mibrowser) ad placement id. Get it from your Google AdSense setup.',
+    },
+
+    // ----- Cross-promo -----
+    'crossPromo': {
+        text: 'Cross-promotion block: a list of your other games shown to the player. Games come from the static list below or from the platform SDK catalog.',
+    },
+    'crossPromo.title': {
+        text: 'Title shown above the cross-promo games list. Default: "More games".',
+    },
+    'crossPromo.source': {
+        text: 'Where the games list comes from: "config" uses the static games list below, "platform" uses the platform SDK catalog. Default: config.',
+    },
+    'crossPromo.games': {
+        text: 'Static list of promoted games. Each game needs a URL; name and icon are optional.',
+    },
+    'crossPromo.games.url': {
+        text: 'Required. Link the player is sent to when clicking the game.',
+    },
+    'crossPromo.games.name': {
+        text: 'Game name shown under the icon.',
+    },
+    'crossPromo.games.icon': {
+        text: 'Icon URL or a path relative to the game build (e.g. cross-promo/my-game.png).',
+    },
+
+    // ----- Daily rewards -----
+    'dailyRewards': {
+        text: 'Daily rewards calendar. The SDK tracks claim days on server time; the game decides what each reward id grants.',
+    },
+    'dailyRewards.rewards': {
+        text: 'Required. Ordered list of reward ids, one per day. The player claims them in order.',
+    },
+    'dailyRewards.cycle': {
+        text: 'Restart the calendar from day one after the last reward is claimed. Default: true.',
+    },
+    'dailyRewards.resetOnMiss': {
+        text: 'Reset progress to day one when the player misses a day. Default: true.',
+    },
+
+    // ----- Tasks -----
+    'tasks': {
+        text: 'Task (quest) groups. Each group has a period type; a task completes when all of its targets reach their amount.',
+    },
+    'tasks.id': {
+        text: 'Required. Stable storage key of the group. Do not change it after release or player progress will reset.',
+    },
+    'tasks.type': {
+        text: 'Required. Task period: "daily" and "weekly" tasks reset each period, "permanent" tasks never reset.',
+    },
+    'tasks.items': {
+        text: 'Tasks in this group. Every task is active for the whole period.',
+    },
+    'tasks.items.id': {
+        text: 'Required. Task identifier returned by the tasks API.',
+    },
+    'tasks.items.targets': {
+        text: 'Objectives of the task. The id is the gameplay metric the game reports via addProgress(); amount is the value that completes it.',
+    },
+    'tasks.items.rewards': {
+        text: 'Rewards granted when the task completes. Data-only: the game decides what each id/amount means.',
+    },
+
+    // ----- Achievements -----
+    'achievements': {
+        text: 'Game achievements. On platforms without native achievements the SDK manages a local fallback using id, name and description.',
+    },
+    'achievements.id': {
+        text: 'Required. The game-level achievement id you pass to the achievements API.',
+    },
+    'achievements.name': {
+        text: 'Achievement name used by the SDK-managed local fallback on platforms without native achievements.',
+    },
+    'achievements.description': {
+        text: 'Achievement description used by the SDK-managed local fallback.',
+    },
+    'achievements.y8': {
+        text: 'Y8 native achievement mapping. Both values come from your Y8 developer account.',
+    },
+    'achievements.y8.achievement': {
+        text: 'Required. Y8 achievement name exactly as registered on Y8.',
+    },
+    'achievements.y8.achievementkey': {
+        text: 'Required. Y8 achievement key from your Y8 developer account.',
+    },
+    'achievements.lagged': {
+        text: 'Lagged native achievement mapping.',
+    },
+    'achievements.lagged.id': {
+        text: 'Required. Lagged achievement id from your Lagged developer account.',
+    },
 
     // ----- Payments (section + items) -----
     'payments': {
@@ -384,10 +488,10 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Required. Bridge product id you pass to the purchase API. Many platforms reuse this id when no override is provided.',
     },
     'payments.crazy_games': {
-        text: 'Per-product CrazyGames override. Configure when the CrazyGames product id differs from the Bridge id.',
+        text: 'Per-product CrazyGames override. Configure when the Xsolla SKU differs from the Bridge id.',
     },
     'payments.crazy_games.id': {
-        text: 'Required. CrazyGames product id. Get it from your CrazyGames developer portal in-app purchases section.',
+        text: 'Required. Xsolla SKU of the product. Get it from your Xsolla publisher account.',
     },
     'payments.discord': {
         text: 'Per-product Discord override. Configure when the Discord SKU id differs from the Bridge id.',
@@ -401,6 +505,18 @@ window.FIELD_DESCRIPTIONS = {
     'payments.facebook.id': {
         text: 'Required. Facebook product id. Get it from the Facebook Developer dashboard under in-app purchases.',
     },
+    'payments.huawei': {
+        text: 'Per-product Huawei override. Configure when the Huawei product id differs from the Bridge id.',
+    },
+    'payments.huawei.id': {
+        text: 'Required. Huawei product id. Get it from Huawei AppGallery Connect under in-app purchases.',
+    },
+    'payments.microsoft_store': {
+        text: 'Per-product Microsoft Store override. Configure when the store product id differs from the Bridge id.',
+    },
+    'payments.microsoft_store.id': {
+        text: 'Required. Microsoft Store product id. Get it from Microsoft Partner Center.',
+    },
     'payments.msn': {
         text: 'Per-product MSN Games override. Configure when the MSN product id differs from the Bridge id.',
     },
@@ -408,43 +524,28 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Required. MSN Games product id. Get it from your MSN Games partner contact.',
     },
     'payments.playdeck': {
-        text: 'Per-product Playdeck override. Playdeck purchases are price-driven and need both an amount and a description.',
+        text: 'Per-product Playdeck override. Playdeck purchases are price-driven and need an amount.',
     },
     'payments.playdeck.amount': {
         text: 'Required. Price in Telegram Stars charged for this product on Playdeck.',
-    },
-    'payments.playdeck.description': {
-        text: 'Required. Short description of the product shown to the player in the Playdeck purchase dialog.',
     },
     'payments.playgama': {
         text: 'Per-product Playgama override. Playgama purchases are price-driven and need an amount.',
     },
     'payments.playgama.amount': {
-        text: 'Required. Price charged for this product on Playgama.',
-    },
-    'payments.qa_tool': {
-        text: 'Per-product Playgama QA tool override used for internal testing of the purchase flow.',
-    },
-    'payments.qa_tool.amount': {
-        text: 'Required. Test price used by the QA tool to simulate purchases.',
-    },
-    'payments.bitquest': {
-        text: 'Per-product Bitquest override. Configure when the Bitquest product id differs from the Bridge id.',
-    },
-    'payments.bitquest.id': {
-        text: 'Required. Bitquest product id. Get it from your Bitquest partner contact.',
-    },
-    'payments.huawei': {
-        text: 'Per-product Huawei override. Configure when the Huawei product id differs from the Bridge id.',
-    },
-    'payments.huawei.id': {
-        text: 'Required. Huawei product id. Get it from Huawei AppGallery Connect under in-app purchases.',
+        text: 'Required. Price in Gam charged for this product on Playgama.',
     },
     'payments.portal': {
         text: 'Per-product white-label portal override. Configure when the portal product id differs from the Bridge id.',
     },
     'payments.portal.id': {
         text: 'Required. Portal product id. Get it from your portal operator.',
+    },
+    'payments.qa_tool': {
+        text: 'Per-product Playgama QA tool override used for internal testing of the purchase flow.',
+    },
+    'payments.qa_tool.amount': {
+        text: 'Required. Test price used by the QA tool to simulate purchases.',
     },
     'payments.reddit': {
         text: 'Per-product Reddit Games override. Configure when the Reddit product id differs from the Bridge id.',
@@ -464,16 +565,16 @@ window.FIELD_DESCRIPTIONS = {
         text: 'List of leaderboards. Each item has a Bridge id and optional per-platform leaderboard ids.',
     },
     'leaderboards.id': {
-        text: 'Required. Bridge leaderboard id you pass to the leaderboards API. Many platforms reuse this id when no override is provided.',
+        text: 'Required. Bridge leaderboard id you pass to the leaderboards API. Platforms reuse this id when no override is provided.',
     },
     'leaderboards.isMain': {
         text: 'Mark this entry as the default leaderboard used when no id is passed to the API.',
     },
-    'leaderboards.bitquest': {
-        text: 'Bitquest leaderboard id. Get it from your Bitquest partner contact.',
-    },
     'leaderboards.facebook': {
         text: 'Facebook leaderboard id. Get it from the Facebook Developer dashboard.',
+    },
+    'leaderboards.gamesnacks': {
+        text: 'GameSnacks leaderboard id. Get it from your GameSnacks developer console.',
     },
     'leaderboards.jio_games': {
         text: 'JioGames leaderboard id. Get it from your JioGames developer account.',
@@ -496,22 +597,10 @@ window.FIELD_DESCRIPTIONS = {
     'leaderboards.youtube': {
         text: 'YouTube Playables leaderboard id. Get it from your YouTube partner contact.',
     },
-    'leaderboards.discord': {
-        text: 'Discord leaderboard id. Get it from your Discord ads/leaderboard partner contact.',
-    },
-    'leaderboards.playgama': {
-        text: 'Playgama leaderboard id. Get it from your Playgama manager.',
-    },
-    'leaderboards.poki': {
-        text: 'Poki leaderboard id. Get it from the Poki for Developers dashboard.',
-    },
-    'leaderboards.crazy_games': {
-        text: 'CrazyGames leaderboard id. Get it from your CrazyGames developer portal.',
-    },
 
     // ----- SaaS -----
     'saas': {
-        text: 'Optional Playgama SaaS settings (e.g. cross-platform leaderboards). Get the public token from your Playgama SaaS account.',
+        text: 'Optional Playgama SaaS settings (cross-platform leaderboards, social). Get the public token from your Playgama SaaS account.',
     },
     'saas.baseUrl': {
         text: 'Override the default Playgama SaaS API base URL. Leave empty to use the production endpoint.',
@@ -520,6 +609,9 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Public token used to authenticate SaaS API calls. Get it from the Playgama SaaS console.',
     },
     'saas.leaderboards.platforms': {
-        text: 'List of platform ids on which Playgama SaaS leaderboards should be used instead of the native platform leaderboards.',
+        text: 'Platform ids on which Playgama SaaS leaderboards are used instead of the native platform leaderboards. On Playgama, SaaS is used whenever a public token is set.',
+    },
+    'saas.social.platforms': {
+        text: 'Platform ids on which Playgama SaaS social features are used instead of the native platform ones. On Playgama, SaaS is used whenever a public token is set.',
     },
 };

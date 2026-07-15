@@ -986,7 +986,7 @@
     <body>
         <div class="container">
             <div class="panel editor-panel">
-                <h1 class="panel-title">Playgama Bridge Config Editor [v1.30]</h1>
+                <h1 class="panel-title">Playgama Bridge Config Editor [v2.0]</h1>
 
                 <div class="section">
                     <h2 class="section-title">General</h2>
@@ -1015,6 +1015,44 @@
                     </div>
                     <p class="section-description" id="advertisementSectionDesc"></p>
                     <div id="advertisementContainer"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title" data-section-path="crossPromo">Cross Promo</h2>
+                        <span class="required-pill" id="crossPromoRequiredPill" hidden></span>
+                    </div>
+                    <p class="section-description" id="crossPromoSectionDesc"></p>
+                    <div id="crossPromoContainer"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title" data-section-path="dailyRewards">Daily Rewards</h2>
+                        <span class="required-pill" id="dailyRewardsRequiredPill" hidden></span>
+                    </div>
+                    <p class="section-description" id="dailyRewardsSectionDesc"></p>
+                    <div id="dailyRewardsContainer"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title" data-section-path="tasks">Tasks</h2>
+                        <span class="required-pill" id="tasksRequiredPill" hidden></span>
+                    </div>
+                    <p class="section-description" id="tasksSectionDesc"></p>
+                    <div class="array-section" id="tasksContainer"></div>
+                    <button class="btn btn-primary" onclick="addTaskGroup()">Add Task Group</button>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title" data-section-path="achievements">Achievements</h2>
+                        <span class="required-pill" id="achievementsRequiredPill" hidden></span>
+                    </div>
+                    <p class="section-description" id="achievementsSectionDesc"></p>
+                    <div class="array-section" id="achievementsContainer"></div>
+                    <button class="btn btn-primary" onclick="addAchievement()">Add Achievement</button>
                 </div>
 
                 <div class="section">

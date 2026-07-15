@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Playgama Bridge Config",
+    "title": "Playgama Bridge Config (v2)",
     "type": "object",
     "additionalProperties": false,
     "patternProperties": {
@@ -9,129 +9,65 @@
         }
     },
     "properties": {
+        "debug": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable SDK debug logging"
+        },
+        "forciblySetPlatformId": {
+            "$ref": "#/definitions/platformId"
+        },
+        "remoteConfigUrl": {
+            "type": "string",
+            "description": "URL of a remotely hosted bridge config that replaces the local one (except forciblySetPlatformId and remoteConfigUrl)"
+        },
+        "remoteConfigTimeout": {
+            "type": "number",
+            "default": 2000,
+            "description": "Remote config fetch timeout in milliseconds"
+        },
+        "remoteConfigTtl": {
+            "type": "number",
+            "default": 3600000,
+            "description": "Remote config cache TTL in milliseconds"
+        },
+        "sendAnalyticsEvents": {
+            "type": "boolean",
+            "default": true
+        },
+        "disableLoadingLogo": {
+            "type": "boolean",
+            "default": false
+        },
+        "showFullLoadingLogo": {
+            "type": "boolean",
+            "default": false
+        },
+        "showLoadingText": {
+            "type": "boolean",
+            "default": false
+        },
+        "game": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "adaptToSafeArea": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Adapt the game canvas to the device safe area"
+                }
+            }
+        },
         "platforms": {
             "type": "object",
-            "additionalProperties": false,
+            "additionalProperties": {
+                "type": "object"
+            },
+            "description": "Platform-specific settings. Any root config section (advertisement, crossPromo, device, ...) may also be placed inside a platform section to override it for that platform only.",
             "properties": {
-                "game_distribution": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "gameId"
-                    ],
-                    "properties": {
-                        "gameId": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "telegram": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "adsgramBlockId": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "y8": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "gameId"
-                    ],
-                    "properties": {
-                        "gameId": {
-                            "type": "string"
-                        },
-                        "adsenseId": {
-                            "type": "string"
-                        },
-                        "channelId": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "lagged": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "devId",
-                        "publisherId"
-                    ],
-                    "properties": {
-                        "devId": {
-                            "type": "string"
-                        },
-                        "publisherId": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "huawei": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "appId"
-                    ],
-                    "properties": {
-                        "appId": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "msn": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "gameId"
-                    ],
-                    "properties": {
-                        "gameId": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "discord": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "appId"
-                    ],
-                    "properties": {
-                        "appId": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "gamepush": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "projectId",
-                        "publicToken"
-                    ],
-                    "properties": {
-                        "projectId": {
-                            "type": "string"
-                        },
-                        "publicToken": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "jio_games": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "adTestMode": {
-                            "type": "boolean"
-                        }
-                    }
-                },
                 "crazy_games": {
                     "type": "object",
-                    "additionalProperties": false,
+                    "additionalProperties": true,
                     "properties": {
                         "xsollaProjectId": {
                             "type": "string"
@@ -146,38 +82,25 @@
                         }
                     }
                 },
-                "facebook": {
+                "discord": {
                     "type": "object",
-                    "additionalProperties": false,
+                    "additionalProperties": true,
+                    "required": [
+                        "appId"
+                    ],
                     "properties": {
-                        "subscribeForNotificationsOnStart": {
-                            "type": "boolean",
-                            "default": true
-                        }
-                    }
-                },
-                "yandex": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "useSignedData": {
-                            "type": "boolean",
-                            "default": false
-                        }
-                    }
-                },
-                "xiaomi": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "adSenseId": {
+                        "appId": {
                             "type": "string"
                         }
                     }
                 },
                 "dlightek": {
                     "type": "object",
-                    "additionalProperties": false,
+                    "additionalProperties": true,
+                    "required": [
+                        "appKey",
+                        "adSenseId"
+                    ],
                     "properties": {
                         "appKey": {
                             "type": "string"
@@ -193,14 +116,84 @@
                         }
                     }
                 },
-                "gamesnacks": {
+                "facebook": {
                     "type": "object",
-                    "additionalProperties": false,
-                    "properties": {}
+                    "additionalProperties": true,
+                    "properties": {
+                        "subscribeForNotificationsOnStart": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                },
+                "game_distribution": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "gameId"
+                    ],
+                    "properties": {
+                        "gameId": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "gamepush": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "projectId",
+                        "publicToken"
+                    ],
+                    "properties": {
+                        "projectId": {
+                            "type": "string"
+                        },
+                        "publicToken": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "huawei": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "appId"
+                    ],
+                    "properties": {
+                        "appId": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "jio_games": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                        "adTestMode": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "lagged": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "devId",
+                        "publisherId"
+                    ],
+                    "properties": {
+                        "devId": {
+                            "type": "string"
+                        },
+                        "publisherId": {
+                            "type": "string"
+                        }
+                    }
                 },
                 "microsoft_store": {
                     "type": "object",
-                    "additionalProperties": false,
+                    "additionalProperties": true,
                     "required": [
                         "gameId",
                         "playgamaAdsId"
@@ -214,9 +207,21 @@
                         }
                     }
                 },
+                "msn": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "gameId"
+                    ],
+                    "properties": {
+                        "gameId": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "samsung": {
                     "type": "object",
-                    "additionalProperties": false,
+                    "additionalProperties": true,
                     "properties": {
                         "admobInterstitialAdUnitId": {
                             "type": "string"
@@ -229,12 +234,64 @@
                         }
                     }
                 },
+                "telegram": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                        "adsgramBlockId": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "tiktok": {
                     "type": "object",
-                    "additionalProperties": false,
+                    "additionalProperties": true,
                     "properties": {
                         "clientKey": {
                             "type": "string"
+                        }
+                    }
+                },
+                "xiaomi": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "adSenseId"
+                    ],
+                    "properties": {
+                        "adSenseId": {
+                            "type": "string"
+                        },
+                        "testMode": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "y8": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "gameId"
+                    ],
+                    "properties": {
+                        "gameId": {
+                            "type": "string"
+                        },
+                        "adsenseId": {
+                            "type": "string"
+                        },
+                        "channelId": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "yandex": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                        "useSignedData": {
+                            "type": "boolean",
+                            "default": false
                         }
                     }
                 }
@@ -245,32 +302,108 @@
             "additionalProperties": false,
             "properties": {
                 "interstitial": {
-                    "$ref": "#/definitions/adUnit"
+                    "$ref": "#/definitions/preloadableAdUnit"
                 },
                 "rewarded": {
-                    "$ref": "#/definitions/adUnit"
+                    "$ref": "#/definitions/preloadableAdUnit"
                 },
                 "banner": {
                     "$ref": "#/definitions/adUnit"
                 },
                 "advancedBanners": {
-                    "$ref": "#/definitions/adUnit"
+                    "type": "object",
+                    "description": "Keys other than disable/placementFallback are placement names mapped to condition-driven banner configs (edit via JSON)",
+                    "properties": {
+                        "disable": {
+                            "type": "boolean"
+                        },
+                        "placementFallback": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": {
+                        "type": "object"
+                    }
                 },
                 "useBuiltInErrorPopup": {
                     "type": "boolean",
-                    "default": true
+                    "default": false
                 },
-                "backfillId": {
-                    "type": "string"
+                "useAdvertisementErrorPopup": {
+                    "type": "boolean"
+                },
+                "builtInErrorPopupCooldown": {
+                    "type": "number",
+                    "default": 180,
+                    "description": "Cooldown in seconds between built-in interstitial failure popups"
                 },
                 "minimumDelayBetweenInterstitial": {
                     "type": "number",
-                    "description": "Minimum delay in milliseconds between interstitial ads"
+                    "default": 60,
+                    "description": "Minimum delay in seconds between interstitial ads"
                 },
                 "initialInterstitialDelay": {
                     "type": "number",
-                    "description": "Delay in milliseconds before the first interstitial ad can be shown after game start"
+                    "description": "Delay in seconds before the first interstitial ad can be shown after game start"
                 }
+            }
+        },
+        "crossPromo": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Title shown above the cross-promo games list"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": ["config", "platform"],
+                    "default": "config",
+                    "description": "Where the games list comes from: the static games list or the platform SDK catalog"
+                },
+                "games": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/crossPromoGame"
+                    }
+                }
+            }
+        },
+        "dailyRewards": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "rewards"
+            ],
+            "properties": {
+                "rewards": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Ordered list of reward ids, one per day"
+                },
+                "cycle": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "resetOnMiss": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "tasks": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/taskGroup"
+            }
+        },
+        "achievements": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/achievementItem"
             }
         },
         "payments": {
@@ -284,21 +417,6 @@
             "items": {
                 "$ref": "#/definitions/leaderboardItem"
             }
-        },
-        "sendAnalyticsEvents": {
-            "type": "boolean",
-            "default": true
-        },
-        "forciblySetPlatformId": {
-            "type": "string"
-        },
-        "disableLoadingLogo": {
-            "type": "boolean",
-            "default": false
-        },
-        "showFullLoadingLogo": {
-            "type": "boolean",
-            "default": true
         },
         "device": {
             "type": "object",
@@ -330,47 +448,104 @@
                     "description": "Public token for Playgama SaaS API authentication"
                 },
                 "leaderboards": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "platforms": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
+                    "$ref": "#/definitions/saasFeature"
+                },
+                "social": {
+                    "$ref": "#/definitions/saasFeature"
                 }
             }
         }
     },
     "definitions": {
+        "platformId": {
+            "type": "string",
+            "enum": [
+                "crazy_games",
+                "discord",
+                "dlightek",
+                "facebook",
+                "game_distribution",
+                "gamepush",
+                "gamesnacks",
+                "huawei",
+                "jio_games",
+                "lagged",
+                "microsoft_store",
+                "mock",
+                "msn",
+                "ok",
+                "playdeck",
+                "playgama",
+                "poki",
+                "portal",
+                "qa_tool",
+                "reddit",
+                "samsung",
+                "standalone",
+                "telegram",
+                "tiktok",
+                "vk",
+                "xiaomi",
+                "y8",
+                "yandex",
+                "youtube"
+            ]
+        },
+        "saasFeature": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "platforms": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/platformId"
+                    }
+                }
+            }
+        },
         "adUnit": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-                "placements"
-            ],
+            "description": "placementFallback should match one of placements[].id",
             "properties": {
-                "preloadOnStart": {
-                    "type": "boolean"
+                "disable": {
+                    "type": "boolean",
+                    "description": "Disable this ad unit"
                 },
                 "placementFallback": {
                     "type": "string"
                 },
                 "placements": {
                     "type": "array",
-                    "minItems": 1,
                     "items": {
                         "$ref": "#/definitions/adPlacement"
                     }
-                },
+                }
+            }
+        },
+        "preloadableAdUnit": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "placementFallback should match one of placements[].id",
+            "properties": {
                 "disable": {
                     "type": "boolean",
                     "description": "Disable this ad unit"
+                },
+                "placementFallback": {
+                    "type": "string"
+                },
+                "preloadOnStart": {
+                    "type": "string",
+                    "description": "Placement id to preload right after SDK initialization"
+                },
+                "placements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/adPlacement"
+                    }
                 }
-            },
-            "description": "placementFallback should match with one of placements[].id"
+            }
         },
         "adPlacement": {
             "type": "object",
@@ -383,92 +558,225 @@
                     "type": "string",
                     "description": "Placement identifier"
                 },
-                "facebook": {
-                    "type": "string"
-                },
-                "yandex": {
-                    "type": "string"
-                },
-                "game_distribution": {
-                    "type": "string"
-                },
-                "telegram": {
-                    "type": "string"
-                },
-                "y8": {
-                    "type": "string"
-                },
-                "lagged": {
-                    "type": "string"
-                },
-                "huawei": {
-                    "type": "string"
-                },
-                "msn": {
+                "crazy_games": {
                     "type": "string"
                 },
                 "discord": {
                     "type": "string"
                 },
-                "gamepush": {
-                    "type": "string"
-                },
-                "jio_games": {
-                    "type": "string"
-                },
-                "crazy_games": {
-                    "type": "string"
-                },
-                "youtube": {
-                    "type": "string"
-                },
-                "vk": {
-                    "type": "string"
-                },
-                "ok": {
-                    "type": "string"
-                },
-                "absolute_games": {
-                    "type": "string"
-                },
-                "playgama": {
-                    "type": "string"
-                },
-                "playdeck": {
-                    "type": "string"
-                },
-                "poki": {
-                    "type": "string"
-                },
-                "mock": {
-                    "type": "string"
-                },
-                "qa_tool": {
-                    "type": "string"
-                },
-                "bitquest": {
-                    "type": "string"
-                },
-                "portal": {
-                    "type": "string"
-                },
-                "reddit": {
-                    "type": "string"
-                },
                 "dlightek": {
+                    "type": "string"
+                },
+                "facebook": {
+                    "type": "string"
+                },
+                "game_distribution": {
+                    "type": "string"
+                },
+                "gamepush": {
                     "type": "string"
                 },
                 "gamesnacks": {
                     "type": "string"
                 },
+                "huawei": {
+                    "type": "string"
+                },
+                "jio_games": {
+                    "type": "string"
+                },
+                "lagged": {
+                    "type": "string"
+                },
                 "microsoft_store": {
+                    "type": "string"
+                },
+                "mock": {
+                    "type": "string"
+                },
+                "msn": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "string"
+                },
+                "playdeck": {
+                    "type": "string"
+                },
+                "playgama": {
+                    "type": "string"
+                },
+                "poki": {
+                    "type": "string"
+                },
+                "portal": {
+                    "type": "string"
+                },
+                "qa_tool": {
+                    "type": "string"
+                },
+                "reddit": {
                     "type": "string"
                 },
                 "samsung": {
                     "type": "string"
                 },
+                "standalone": {
+                    "type": "string"
+                },
+                "telegram": {
+                    "type": "string"
+                },
                 "tiktok": {
                     "type": "string"
+                },
+                "vk": {
+                    "type": "string"
+                },
+                "xiaomi": {
+                    "type": "string"
+                },
+                "y8": {
+                    "type": "string"
+                },
+                "yandex": {
+                    "type": "string"
+                },
+                "youtube": {
+                    "type": "string"
+                }
+            }
+        },
+        "crossPromoGame": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                }
+            }
+        },
+        "taskGroup": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id",
+                "type",
+                "items"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Stable storage key of the group"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": ["daily", "weekly", "permanent"]
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/taskItem"
+                    }
+                }
+            }
+        },
+        "taskItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id",
+                "targets",
+                "rewards"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/taskAmountEntry"
+                    }
+                },
+                "rewards": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/taskAmountEntry"
+                    }
+                }
+            }
+        },
+        "taskAmountEntry": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id",
+                "amount"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "amount": {
+                    "type": "number"
+                }
+            }
+        },
+        "achievementItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id"
+            ],
+            "description": "Game-level achievement with optional per-platform mapping data",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The game's achievement identifier"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "y8": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "achievement",
+                        "achievementkey"
+                    ],
+                    "properties": {
+                        "achievement": {
+                            "type": "string"
+                        },
+                        "achievementkey": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "lagged": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "id"
+                    ],
+                    "properties": {
+                        "id": {
+                            "type": "string"
+                        }
+                    }
                 }
             }
         },
@@ -519,6 +827,30 @@
                         }
                     }
                 },
+                "huawei": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "id"
+                    ],
+                    "properties": {
+                        "id": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "microsoft_store": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "id"
+                    ],
+                    "properties": {
+                        "id": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "msn": {
                     "type": "object",
                     "additionalProperties": false,
@@ -535,15 +867,11 @@
                     "type": "object",
                     "additionalProperties": false,
                     "required": [
-                        "amount",
-                        "description"
+                        "amount"
                     ],
                     "properties": {
                         "amount": {
                             "type": "number"
-                        },
-                        "description": {
-                            "type": "string"
                         }
                     }
                 },
@@ -559,42 +887,6 @@
                         }
                     }
                 },
-                "qa_tool": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "amount"
-                    ],
-                    "properties": {
-                        "amount": {
-                            "type": "number"
-                        }
-                    }
-                },
-                "bitquest": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "id"
-                    ],
-                    "properties": {
-                        "id": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "huawei": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "id"
-                    ],
-                    "properties": {
-                        "id": {
-                            "type": "string"
-                        }
-                    }
-                },
                 "portal": {
                     "type": "object",
                     "additionalProperties": false,
@@ -604,6 +896,18 @@
                     "properties": {
                         "id": {
                             "type": "string"
+                        }
+                    }
+                },
+                "qa_tool": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "amount"
+                    ],
+                    "properties": {
+                        "amount": {
+                            "type": "number"
                         }
                     }
                 },
@@ -649,10 +953,10 @@
                     "type": "boolean",
                     "description": "Whether this is the main/default leaderboard"
                 },
-                "bitquest": {
+                "facebook": {
                     "type": "string"
                 },
-                "facebook": {
+                "gamesnacks": {
                     "type": "string"
                 },
                 "jio_games": {
@@ -662,9 +966,6 @@
                     "type": "string"
                 },
                 "msn": {
-                    "type": "string"
-                },
-                "playgama": {
                     "type": "string"
                 },
                 "qa_tool": {
@@ -677,18 +978,6 @@
                     "type": "string"
                 },
                 "youtube": {
-                    "type": "string"
-                },
-                "discord": {
-                    "type": "string"
-                },
-                "playgama": {
-                    "type": "string"
-                },
-                "poki": {
-                    "type": "string"
-                },
-                "crazy_games": {
                     "type": "string"
                 }
             }

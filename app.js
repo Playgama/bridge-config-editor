@@ -1,19 +1,31 @@
 const SCHEMA_URL = './schema.json';
 
-const ALL_PLATFORMS = [
-    'facebook', 'yandex', 'game_distribution', 'telegram', 'y8', 'lagged',
-    'huawei', 'msn', 'discord', 'gamepush', 'jio_games', 'crazy_games',
-    'youtube', 'vk', 'ok', 'absolute_games', 'playgama', 'playdeck',
-    'poki', 'mock', 'qa_tool', 'bitquest', 'portal', 'reddit', 'xiaomi',
-    'dlightek', 'gamesnacks', 'microsoft_store', 'samsung', 'tiktok'
-];
-
 const SECTION_DESCRIPTION_TARGETS = [
     { path: 'advertisement', elementId: 'advertisementSectionDesc' },
+    { path: 'crossPromo', elementId: 'crossPromoSectionDesc' },
+    { path: 'dailyRewards', elementId: 'dailyRewardsSectionDesc' },
+    { path: 'tasks', elementId: 'tasksSectionDesc' },
+    { path: 'achievements', elementId: 'achievementsSectionDesc' },
     { path: 'payments', elementId: 'paymentsSectionDesc' },
     { path: 'leaderboards', elementId: 'leaderboardsSectionDesc' },
     { path: 'saas', elementId: 'saasSectionDesc' }
 ];
+
+// SaaS features that support per-platform enablement via saas.<feature>.platforms
+const SAAS_FEATURES = ['leaderboards', 'social'];
+
+// All known platform ids, sourced from the schema
+function getAllPlatformIds() {
+    const def = schema && schema.definitions && schema.definitions.platformId;
+    return (def && Array.isArray(def.enum)) ? def.enum.slice() : [];
+}
+
+// Platform ids that can carry an ad placement override, sourced from the schema
+function getAdPlacementPlatformIds() {
+    const def = schema && schema.definitions && schema.definitions.adPlacement;
+    if (!def || !def.properties) return [];
+    return Object.keys(def.properties).filter((key) => key !== 'id');
+}
 
 let schema = null;
 let config = {};
@@ -346,6 +358,10 @@ function renderEditor() {
     renderDevice();
     renderPlatforms();
     renderAdvertisement();
+    renderCrossPromo();
+    renderDailyRewards();
+    renderTasks();
+    renderAchievements();
     renderSaas();
     renderPayments();
     renderLeaderboards();
@@ -358,7 +374,11 @@ function renderGeneral() {
 
     container.innerHTML = '';
 
-    const generalFields = ['forciblySetPlatformId', 'sendAnalyticsEvents', 'disableLoadingLogo', 'showFullLoadingLogo'];
+    const generalFields = [
+        'forciblySetPlatformId', 'debug', 'sendAnalyticsEvents',
+        'disableLoadingLogo', 'showFullLoadingLogo', 'showLoadingText',
+        'remoteConfigUrl', 'remoteConfigTimeout', 'remoteConfigTtl'
+    ];
 
     let html = '';
     for (const fieldName of generalFields) {
@@ -374,6 +394,12 @@ function renderGeneral() {
         }
     }
 
+    const gameSchema = schema.properties.game;
+    if (gameSchema && gameSchema.properties && gameSchema.properties.adaptToSafeArea) {
+        const fieldValue = (config.game && config.game.adaptToSafeArea) ?? false;
+        html += renderField('game.adaptToSafeArea', 'adaptToSafeArea', gameSchema.properties.adaptToSafeArea, fieldValue, false);
+    }
+
     container.innerHTML = html;
 }
 
@@ -381,9 +407,8 @@ function renderPlatformSelect(fieldName, fieldSchema, fieldValue) {
     const label = formatLabel(fieldName);
 
     // Source platform IDs from the schema so newly added platforms show up automatically
-    const platformIds = (schema && schema.properties && schema.properties.platforms && schema.properties.platforms.properties)
-        ? Object.keys(schema.properties.platforms.properties).slice().sort()
-        : [];
+    const resolved = resolveRef(fieldSchema, schema) || {};
+    const platformIds = Array.isArray(resolved.enum) ? resolved.enum.slice().sort() : [];
 
     let options = '<option value="">-</option>';
     for (const platform of platformIds) {
@@ -567,14 +592,14 @@ function renderAdvertisement() {
 
     // Derive ad-unit subsections from the schema so future ad units appear automatically
     const adUnitTypes = Object.keys(adSchema.properties).filter((key) => {
-        const propSchema = adSchema.properties[key];
-        return propSchema && propSchema.$ref === '#/definitions/adUnit';
+        const resolved = resolveRef(adSchema.properties[key], schema);
+        return resolved && resolved.properties && resolved.properties.placements;
     });
 
     let html = `<div class="field-group"><p style="margin-bottom: 10px; color: #34495e; display: inline-flex; align-items: center; gap: 6px;"><b>General Settings</b>${infoBtnHtml('advertisement')}</p>`;
 
     for (const [fieldName, fieldSchema] of Object.entries(adSchema.properties)) {
-        if (fieldSchema && fieldSchema.$ref === '#/definitions/adUnit') {
+        if (adUnitTypes.includes(fieldName) || fieldName === 'advancedBanners') {
             continue;
         }
 
@@ -626,6 +651,26 @@ function renderAdvertisement() {
         html += '</div>';
     }
 
+    // Advanced banners: only the flat fields are editable here, placement
+    // entries are free-form condition-driven objects edited via JSON upload
+    const advancedBannersSchema = adSchema.properties.advancedBanners;
+    if (advancedBannersSchema && advancedBannersSchema.properties) {
+        html += `<div class="field-group"><p style="margin-bottom: 10px; color: #34495e; display: inline-flex; align-items: center; gap: 6px;"><b>Advanced Banners</b>${infoBtnHtml('advertisement.advancedBanners')}</p>`;
+
+        const advancedBanners = config.advertisement.advancedBanners || {};
+        for (const [fieldName, fieldSchema] of Object.entries(advancedBannersSchema.properties)) {
+            html += renderField(
+                `advertisement.advancedBanners.${fieldName}`,
+                fieldName,
+                fieldSchema,
+                advancedBanners[fieldName] ?? buildDefaultValue(fieldSchema, schema),
+                false
+            );
+        }
+
+        html += '</div>';
+    }
+
     container.innerHTML = html;
 
     // Render placements for each ad type
@@ -637,14 +682,7 @@ function renderAdvertisement() {
 }
 
 function getKnownPlatformIds() {
-    if (!schema || !schema.properties || !schema.properties.platforms || !schema.properties.platforms.properties) {
-        return [];
-    }
-    const ids = Object.keys(schema.properties.platforms.properties);
-    if (!ids.includes('playgama')) {
-        ids.push('playgama');
-    }
-    return ids.sort();
+    return getAllPlatformIds().sort();
 }
 
 function renderSaas() {
@@ -662,9 +700,6 @@ function renderSaas() {
     const saasValue = config.saas || {};
     const baseUrl = saasValue.baseUrl || '';
     const publicToken = saasValue.publicToken || '';
-    const selectedPlatforms = (saasValue.leaderboards && Array.isArray(saasValue.leaderboards.platforms))
-        ? saasValue.leaderboards.platforms.slice()
-        : [];
 
     let html = '';
 
@@ -692,57 +727,71 @@ function renderSaas() {
         </div>
     `;
 
-    // Leaderboards SaaS Platforms — chip picker
+    // Per-feature SaaS platforms — chip pickers
     const knownIds = getKnownPlatformIds();
-    const remainingIds = knownIds.filter((id) => !selectedPlatforms.includes(id));
 
-    let chipsHtml = '';
-    if (selectedPlatforms.length > 0) {
-        chipsHtml = selectedPlatforms.map((id) => `
-            <span class="chip">
-                ${formatLabel(id)}
-                <button type="button"
-                        class="chip-remove"
-                        aria-label="Remove ${escapeAttr(formatLabel(id))}"
-                        onclick="removeSaasLeaderboardPlatform('${id}')">×</button>
-            </span>
-        `).join('');
-    }
+    for (const feature of SAAS_FEATURES) {
+        if (!saasSchema.properties[feature]) continue;
 
-    let pickerHtml = '';
-    if (remainingIds.length > 0) {
-        let options = '<option value="">Select platform...</option>';
-        for (const id of remainingIds) {
-            options += `<option value="${id}">${formatLabel(id)}</option>`;
+        const selectedPlatforms = (saasValue[feature] && Array.isArray(saasValue[feature].platforms))
+            ? saasValue[feature].platforms.slice()
+            : [];
+        const remainingIds = knownIds.filter((id) => !selectedPlatforms.includes(id));
+
+        let chipsHtml = '';
+        if (selectedPlatforms.length > 0) {
+            chipsHtml = selectedPlatforms.map((id) => `
+                <span class="chip">
+                    ${formatLabel(id)}
+                    <button type="button"
+                            class="chip-remove"
+                            aria-label="Remove ${escapeAttr(formatLabel(id))}"
+                            onclick="removeSaasFeaturePlatform('${feature}', '${id}')">×</button>
+                </span>
+            `).join('');
         }
-        pickerHtml = `
-            <div class="chip-picker">
-                <select id="saasLeaderboardsPlatformPicker" class="field-input chip-picker-select">${options}</select>
-                <button type="button" class="btn btn-primary chip-add-btn" onclick="addSaasLeaderboardPlatformFromPicker()">+ Add platform</button>
+
+        let pickerHtml = '';
+        if (remainingIds.length > 0) {
+            let options = '<option value="">Select platform...</option>';
+            for (const id of remainingIds) {
+                options += `<option value="${id}">${formatLabel(id)}</option>`;
+            }
+            pickerHtml = `
+                <div class="chip-picker">
+                    <select id="saasPlatformPicker_${feature}" class="field-input chip-picker-select">${options}</select>
+                    <button type="button" class="btn btn-primary chip-add-btn" onclick="addSaasFeaturePlatformFromPicker('${feature}')">+ Add platform</button>
+                </div>
+            `;
+        }
+
+        html += `
+            <div class="field-group">
+                <label class="field-label">${formatLabel(feature)} Platforms${infoBtnHtml('saas.' + feature + '.platforms')}</label>
+                <div class="chip-list">${chipsHtml}</div>
+                ${pickerHtml}
             </div>
         `;
     }
 
-    html += `
-        <div class="field-group">
-            <label class="field-label">Leaderboards Platforms${infoBtnHtml('saas.leaderboards.platforms')}</label>
-            <div class="chip-list" id="saasLeaderboardsPlatformsChips">${chipsHtml}</div>
-            ${pickerHtml}
-        </div>
-    `;
-
     container.innerHTML = html;
 }
 
-function setSaasLeaderboardsPlatforms(arr) {
+function getSaasFeaturePlatforms(feature) {
+    return (config.saas && config.saas[feature] && Array.isArray(config.saas[feature].platforms))
+        ? config.saas[feature].platforms.slice()
+        : [];
+}
+
+function setSaasFeaturePlatforms(feature, arr) {
     if (!Array.isArray(arr) || arr.length === 0) {
-        if (config.saas && config.saas.leaderboards) {
-            delete config.saas.leaderboards.platforms;
+        if (config.saas && config.saas[feature]) {
+            delete config.saas[feature].platforms;
         }
     } else {
         if (!config.saas) config.saas = {};
-        if (!config.saas.leaderboards) config.saas.leaderboards = {};
-        config.saas.leaderboards.platforms = arr;
+        if (!config.saas[feature]) config.saas[feature] = {};
+        config.saas[feature].platforms = arr;
     }
 
     cleanupEmptyObjects(config);
@@ -750,28 +799,20 @@ function setSaasLeaderboardsPlatforms(arr) {
     renderSaas();
 }
 
-function addSaasLeaderboardPlatformFromPicker() {
-    const picker = document.getElementById('saasLeaderboardsPlatformPicker');
-    if (!picker) return;
-    const value = picker.value;
-    if (!value) return;
+function addSaasFeaturePlatformFromPicker(feature) {
+    const picker = document.getElementById(`saasPlatformPicker_${feature}`);
+    if (!picker || !picker.value) return;
 
-    const current = (config.saas && config.saas.leaderboards && Array.isArray(config.saas.leaderboards.platforms))
-        ? config.saas.leaderboards.platforms.slice()
-        : [];
+    const current = getSaasFeaturePlatforms(feature);
+    if (current.includes(picker.value)) return;
 
-    if (current.includes(value)) return;
-    current.push(value);
-    setSaasLeaderboardsPlatforms(current);
+    current.push(picker.value);
+    setSaasFeaturePlatforms(feature, current);
 }
 
-function removeSaasLeaderboardPlatform(platformId) {
-    const current = (config.saas && config.saas.leaderboards && Array.isArray(config.saas.leaderboards.platforms))
-        ? config.saas.leaderboards.platforms.slice()
-        : [];
-
-    const next = current.filter((id) => id !== platformId);
-    setSaasLeaderboardsPlatforms(next);
+function removeSaasFeaturePlatform(feature, platformId) {
+    const next = getSaasFeaturePlatforms(feature).filter((id) => id !== platformId);
+    setSaasFeaturePlatforms(feature, next);
 }
 
 function renderPayments() {
@@ -802,7 +843,7 @@ function renderPayments() {
                     <label class="field-label">Product ID *${infoBtnHtml('payments.id')}</label>
                     <input type="text"
                            class="field-input${idValidation.invalidClass}"
-                           value="${payment.id || ''}"
+                           value="${escapeAttr(payment.id || '')}"
                            onchange="updatePaymentField(${index}, 'id', this.value)"
                            placeholder="Product ID">
                     ${idValidation.errorHtml}
@@ -883,7 +924,25 @@ function renderField(path, fieldName, fieldSchema, fieldValue, isRequired) {
     const requiredMark = isRequired ? ' *' : '';
     const info = infoBtnHtml(path);
 
-    if (fieldSchema.type === 'boolean') {
+    if (Array.isArray(fieldSchema.enum)) {
+        const v = getRequiredValidation(isRequired, fieldValue);
+        let options = isRequired ? '' : '<option value="">-</option>';
+        for (const option of fieldSchema.enum) {
+            const selected = fieldValue === option ? 'selected' : '';
+            options += `<option value="${escapeAttr(option)}" ${selected}>${formatLabel(option)}</option>`;
+        }
+        return `
+            <div class="field-group">
+                <label for="${path}" class="field-label">${label}${requiredMark}${info}</label>
+                <select id="${path}"
+                        class="field-input${v.invalidClass}"
+                        onchange="updateField('${path}', this.value)">
+                    ${options}
+                </select>
+                ${v.errorHtml}
+            </div>
+        `;
+    } else if (fieldSchema.type === 'boolean') {
         return `
             <div class="field-group">
                 <div class="checkbox-group">
@@ -904,7 +963,7 @@ function renderField(path, fieldName, fieldSchema, fieldValue, isRequired) {
                 <input type="text"
                        id="${path}"
                        class="field-input${v.invalidClass}"
-                       value="${fieldValue || ''}"
+                       value="${escapeAttr(fieldValue || '')}"
                        onchange="updateField('${path}', this.value)">
                 ${v.errorHtml}
             </div>
@@ -917,8 +976,8 @@ function renderField(path, fieldName, fieldSchema, fieldValue, isRequired) {
                 <input type="number"
                        id="${path}"
                        class="field-input${v.invalidClass}"
-                       value="${fieldValue || ''}"
-                       onchange="updateField('${path}', parseFloat(this.value) || 0)">
+                       value="${typeof fieldValue === 'number' ? fieldValue : ''}"
+                       onchange="updateNumberField('${path}', this.value)">
                 ${v.errorHtml}
             </div>
         `;
@@ -934,14 +993,14 @@ function renderFieldInput(fieldPath, fieldSchema, fieldValue, paymentIndex, isRe
     if (fieldSchema.type === 'string') {
         return `<input type="text"
                        class="field-input${v.invalidClass}"
-                       value="${fieldValue || ''}"
+                       value="${escapeAttr(fieldValue || '')}"
                        onchange="updateField('${fullPath}', this.value)"
                        style="width: 100%;">${v.errorHtml}`;
     } else if (fieldSchema.type === 'number') {
         return `<input type="number"
                        class="field-input${v.invalidClass}"
-                       value="${fieldValue || ''}"
-                       onchange="updateField('${fullPath}', parseFloat(this.value) || null)"
+                       value="${typeof fieldValue === 'number' ? fieldValue : ''}"
+                       onchange="updateNumberField('${fullPath}', this.value)"
                        style="width: 100%;">${v.errorHtml}`;
     } else if (fieldSchema.type === 'boolean') {
         return `<input type="checkbox"
@@ -951,6 +1010,21 @@ function renderFieldInput(fieldPath, fieldSchema, fieldValue, paymentIndex, isRe
     }
 
     return '';
+}
+
+// Number inputs: empty input removes the field, invalid input is ignored
+function updateNumberField(path, rawValue) {
+    if (rawValue === '') {
+        updateField(path, null);
+        return;
+    }
+
+    const parsed = Number(rawValue);
+    if (Number.isNaN(parsed)) {
+        return;
+    }
+
+    updateField(path, parsed);
 }
 
 function updateField(path, value) {
@@ -1210,7 +1284,7 @@ function renderLeaderboards() {
                     <label class="field-label">Leaderboard ID *${infoBtnHtml('leaderboards.id')}</label>
                     <input type="text"
                            class="field-input${lbIdValidation.invalidClass}"
-                           value="${leaderboard.id || ''}"
+                           value="${escapeAttr(leaderboard.id || '')}"
                            onchange="updateLeaderboardField(${index}, 'id', this.value)"
                            placeholder="Leaderboard ID">
                     ${lbIdValidation.errorHtml}
@@ -1324,7 +1398,7 @@ function renderLeaderboardPlatforms(leaderboardIndex) {
                 <label style="display: block; font-size: 11px; font-weight: 500; color: #7f8c8d; margin-bottom: 4px;">Override ID</label>
                 <input type="text"
                        class="field-input"
-                       value="${value || ''}"
+                       value="${escapeAttr(value || '')}"
                        onchange="updateLeaderboardPlatformId(${leaderboardIndex}, '${platformName}', this.value)"
                        placeholder="Platform ID"
                        style="font-size: 12px; padding: 6px 10px;">
@@ -1503,7 +1577,7 @@ function renderPlacements(adType) {
                     <label class="field-label">Placement ID *${infoBtnHtml('adPlacement.id')}</label>
                     <input type="text"
                            class="field-input${placementIdValidation.invalidClass}"
-                           value="${placement.id || ''}"
+                           value="${escapeAttr(placement.id || '')}"
                            onchange="updatePlacementField('${adType}', ${index}, 'id', this.value)"
                            placeholder="Placement ID">
                     ${placementIdValidation.errorHtml}
@@ -1534,9 +1608,11 @@ function renderPlatformOverrides(adType, placementIndex) {
 
     container.innerHTML = '';
 
+    const placementPlatformIds = getAdPlacementPlatformIds();
+
     for (const [key, value] of Object.entries(placement)) {
         if (key === 'id') continue;
-        if (!ALL_PLATFORMS.includes(key)) continue;
+        if (!placementPlatformIds.includes(key)) continue;
 
         const overrideDiv = document.createElement('div');
         overrideDiv.style.display = 'flex';
@@ -1556,7 +1632,7 @@ function renderPlatformOverrides(adType, placementIndex) {
                 <label style="display: block; font-size: 11px; font-weight: 500; color: #7f8c8d; margin-bottom: 4px;">Override ID</label>
                 <input type="text"
                        class="field-input"
-                       value="${value || ''}"
+                       value="${escapeAttr(value || '')}"
                        onchange="updatePlatformOverrideId('${adType}', ${placementIndex}, '${key}', this.value)"
                        placeholder="Platform ID"
                        style="font-size: 12px; padding: 6px 10px;">
@@ -1659,9 +1735,10 @@ function renderOverridePlatformList(filterText = '') {
     const placement = config.advertisement[adType].placements[placementIndex];
     if (!placement) return;
 
-    const alreadyAddedPlatforms = Object.keys(placement).filter(key => key !== 'id' && ALL_PLATFORMS.includes(key));
+    const placementPlatformIds = getAdPlacementPlatformIds();
+    const alreadyAddedPlatforms = Object.keys(placement).filter(key => key !== 'id' && placementPlatformIds.includes(key));
 
-    const filteredPlatforms = ALL_PLATFORMS.filter(platformName => {
+    const filteredPlatforms = placementPlatformIds.filter(platformName => {
         if (!filterText) return true;
         const label = formatLabel(platformName).toLowerCase();
         return label.includes(filterText.toLowerCase()) || platformName.toLowerCase().includes(filterText.toLowerCase());
@@ -1738,6 +1815,598 @@ function removePlatformOverride(adType, placementIndex, platformName) {
     updateJsonOutput();
 }
 
+// ---------- Cross Promo ----------
+
+function renderCrossPromo() {
+    const container = document.getElementById('crossPromoContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const cpSchema = schema.properties.crossPromo;
+    if (!cpSchema || !cpSchema.properties) return;
+
+    const crossPromo = config.crossPromo || {};
+
+    let html = '';
+    html += renderField('crossPromo.title', 'title', cpSchema.properties.title, crossPromo.title || '', false);
+    html += renderField('crossPromo.source', 'source', cpSchema.properties.source, crossPromo.source || cpSchema.properties.source.default || '', false);
+    html += `
+        <div class="field-group">
+            <label class="field-label">Games${infoBtnHtml('crossPromo.games')}</label>
+            <div class="array-section" id="crossPromoGamesContainer"></div>
+            <button class="btn btn-primary" onclick="addCrossPromoGame()">Add Game</button>
+        </div>
+    `;
+    container.innerHTML = html;
+
+    renderCrossPromoGames();
+}
+
+function renderCrossPromoGames() {
+    const container = document.getElementById('crossPromoGamesContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const games = (config.crossPromo && Array.isArray(config.crossPromo.games)) ? config.crossPromo.games : [];
+
+    games.forEach((game, index) => {
+        const gameDiv = document.createElement('div');
+        gameDiv.className = 'array-item';
+        gameDiv.style.flexDirection = 'column';
+        gameDiv.style.alignItems = 'stretch';
+        gameDiv.style.gap = '10px';
+
+        const urlValidation = getRequiredValidation(true, game.url);
+        gameDiv.innerHTML = `
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="flex: 1;">
+                    <label class="field-label">Url *${infoBtnHtml('crossPromo.games.url')}</label>
+                    <input type="text"
+                           class="field-input${urlValidation.invalidClass}"
+                           value="${escapeAttr(game.url || '')}"
+                           onchange="updateCrossPromoGame(${index}, 'url', this.value)"
+                           placeholder="https://...">
+                    ${urlValidation.errorHtml}
+                </div>
+                <button class="btn btn-danger" onclick="removeCrossPromoGame(${index})" style="margin-top: 20px;">Remove</button>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <label class="field-label">Name${infoBtnHtml('crossPromo.games.name')}</label>
+                    <input type="text"
+                           class="field-input"
+                           value="${escapeAttr(game.name || '')}"
+                           onchange="updateCrossPromoGame(${index}, 'name', this.value)">
+                </div>
+                <div style="flex: 1;">
+                    <label class="field-label">Icon${infoBtnHtml('crossPromo.games.icon')}</label>
+                    <input type="text"
+                           class="field-input"
+                           value="${escapeAttr(game.icon || '')}"
+                           onchange="updateCrossPromoGame(${index}, 'icon', this.value)">
+                </div>
+            </div>
+        `;
+        container.appendChild(gameDiv);
+    });
+}
+
+function addCrossPromoGame() {
+    if (!config.crossPromo) config.crossPromo = {};
+    if (!Array.isArray(config.crossPromo.games)) config.crossPromo.games = [];
+
+    config.crossPromo.games.push({ url: '' });
+    renderCrossPromoGames();
+    updateJsonOutput();
+}
+
+function removeCrossPromoGame(index) {
+    if (!config.crossPromo || !Array.isArray(config.crossPromo.games)) return;
+
+    config.crossPromo.games.splice(index, 1);
+    renderCrossPromoGames();
+    updateJsonOutput();
+}
+
+function updateCrossPromoGame(index, field, value) {
+    const game = config.crossPromo && Array.isArray(config.crossPromo.games) && config.crossPromo.games[index];
+    if (!game) return;
+
+    if (value && value.trim() !== '') {
+        game[field] = value;
+    } else if (field === 'url') {
+        game.url = '';
+    } else {
+        delete game[field];
+    }
+
+    renderCrossPromoGames();
+    updateJsonOutput();
+}
+
+// ---------- Daily Rewards ----------
+
+function renderDailyRewards() {
+    const container = document.getElementById('dailyRewardsContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const drSchema = schema.properties.dailyRewards;
+    if (!drSchema || !drSchema.properties) return;
+
+    const dailyRewards = config.dailyRewards || {};
+
+    let html = `
+        <div class="field-group">
+            <label class="field-label">Rewards *${infoBtnHtml('dailyRewards.rewards')}</label>
+            <div class="array-section" id="dailyRewardsListContainer"></div>
+            <button class="btn btn-primary" onclick="addDailyReward()">Add Reward</button>
+        </div>
+    `;
+    html += renderField('dailyRewards.cycle', 'cycle', drSchema.properties.cycle, dailyRewards.cycle ?? true, false);
+    html += renderField('dailyRewards.resetOnMiss', 'resetOnMiss', drSchema.properties.resetOnMiss, dailyRewards.resetOnMiss ?? true, false);
+
+    container.innerHTML = html;
+
+    renderDailyRewardsList();
+}
+
+function renderDailyRewardsList() {
+    const container = document.getElementById('dailyRewardsListContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const rewards = (config.dailyRewards && Array.isArray(config.dailyRewards.rewards)) ? config.dailyRewards.rewards : [];
+
+    rewards.forEach((reward, index) => {
+        const v = getRequiredValidation(true, reward);
+        const rewardDiv = document.createElement('div');
+        rewardDiv.className = 'array-item';
+        rewardDiv.innerHTML = `
+            <span style="flex: 0 0 60px; font-size: 12px; font-weight: 600; color: #7f8c8d;">Day ${index + 1}</span>
+            <input type="text"
+                   class="array-input${v.invalidClass}"
+                   value="${escapeAttr(reward || '')}"
+                   onchange="updateDailyReward(${index}, this.value)"
+                   placeholder="Reward ID">
+            <button class="btn btn-danger" onclick="removeDailyReward(${index})" style="font-size: 11px; padding: 5px 10px;">Remove</button>
+        `;
+        container.appendChild(rewardDiv);
+    });
+}
+
+function addDailyReward() {
+    if (!config.dailyRewards) config.dailyRewards = {};
+    if (!Array.isArray(config.dailyRewards.rewards)) config.dailyRewards.rewards = [];
+
+    config.dailyRewards.rewards.push('');
+    renderDailyRewardsList();
+    updateJsonOutput();
+}
+
+function removeDailyReward(index) {
+    if (!config.dailyRewards || !Array.isArray(config.dailyRewards.rewards)) return;
+
+    config.dailyRewards.rewards.splice(index, 1);
+    renderDailyRewardsList();
+    updateJsonOutput();
+}
+
+function updateDailyReward(index, value) {
+    if (!config.dailyRewards || !Array.isArray(config.dailyRewards.rewards)) return;
+
+    config.dailyRewards.rewards[index] = value;
+    renderDailyRewardsList();
+    updateJsonOutput();
+}
+
+// ---------- Tasks ----------
+
+function renderTasks() {
+    const container = document.getElementById('tasksContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!config.tasks) {
+        config.tasks = [];
+    }
+
+    const groupSchema = resolveRef(schema.properties.tasks.items, schema);
+    const typeOptions = (groupSchema.properties.type && groupSchema.properties.type.enum) || [];
+
+    config.tasks.forEach((group, groupIndex) => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'array-item';
+        groupDiv.style.flexDirection = 'column';
+        groupDiv.style.alignItems = 'stretch';
+        groupDiv.style.gap = '15px';
+        groupDiv.style.padding = '15px';
+        groupDiv.style.border = '1px solid #ddd';
+        groupDiv.style.borderRadius = '6px';
+        groupDiv.style.background = '#fafafa';
+
+        const idValidation = getRequiredValidation(true, group.id);
+        let options = '';
+        for (const option of typeOptions) {
+            options += `<option value="${option}" ${group.type === option ? 'selected' : ''}>${formatLabel(option)}</option>`;
+        }
+
+        groupDiv.innerHTML = `
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <div style="flex: 1;">
+                    <label class="field-label">Group ID *${infoBtnHtml('tasks.id')}</label>
+                    <input type="text"
+                           class="field-input${idValidation.invalidClass}"
+                           value="${escapeAttr(group.id || '')}"
+                           onchange="updateTaskGroupField(${groupIndex}, 'id', this.value)"
+                           placeholder="Group ID">
+                    ${idValidation.errorHtml}
+                </div>
+                <div style="flex: 1;">
+                    <label class="field-label">Type *${infoBtnHtml('tasks.type')}</label>
+                    <select class="field-input" onchange="updateTaskGroupField(${groupIndex}, 'type', this.value)">${options}</select>
+                </div>
+                <button class="btn btn-danger" onclick="removeTaskGroup(${groupIndex})" style="margin-top: 22px;">Remove</button>
+            </div>
+            <div>
+                <h4 style="margin-bottom: 10px; color: #34495e; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">Tasks${infoBtnHtml('tasks.items')}</h4>
+                <div id="task_group_${groupIndex}_items" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                <button class="btn btn-primary" onclick="addTaskItem(${groupIndex})" style="margin-top: 10px; font-size: 12px; padding: 6px 12px;">Add Task</button>
+            </div>
+        `;
+
+        container.appendChild(groupDiv);
+        renderTaskItems(groupIndex);
+    });
+}
+
+function renderTaskItems(groupIndex) {
+    const group = config.tasks[groupIndex];
+    const container = document.getElementById(`task_group_${groupIndex}_items`);
+    if (!container || !group) return;
+
+    container.innerHTML = '';
+
+    (group.items || []).forEach((item, itemIndex) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.style.display = 'flex';
+        itemDiv.style.flexDirection = 'column';
+        itemDiv.style.gap = '10px';
+        itemDiv.style.padding = '12px';
+        itemDiv.style.background = 'white';
+        itemDiv.style.borderRadius = '6px';
+        itemDiv.style.border = '1px solid #e0e0e0';
+
+        const idValidation = getRequiredValidation(true, item.id);
+        itemDiv.innerHTML = `
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="flex: 1;">
+                    <label class="field-label">Task ID *${infoBtnHtml('tasks.items.id')}</label>
+                    <input type="text"
+                           class="field-input${idValidation.invalidClass}"
+                           value="${escapeAttr(item.id || '')}"
+                           onchange="updateTaskItemId(${groupIndex}, ${itemIndex}, this.value)"
+                           placeholder="Task ID">
+                    ${idValidation.errorHtml}
+                </div>
+                <button class="btn btn-danger" onclick="removeTaskItem(${groupIndex}, ${itemIndex})" style="margin-top: 20px; font-size: 11px; padding: 5px 10px;">Remove</button>
+            </div>
+            ${renderTaskEntriesHtml(groupIndex, itemIndex, 'targets')}
+            ${renderTaskEntriesHtml(groupIndex, itemIndex, 'rewards')}
+        `;
+
+        container.appendChild(itemDiv);
+    });
+}
+
+function renderTaskEntriesHtml(groupIndex, itemIndex, kind) {
+    const item = config.tasks[groupIndex].items[itemIndex];
+    const entries = Array.isArray(item[kind]) ? item[kind] : [];
+
+    let rows = '';
+    entries.forEach((entry, entryIndex) => {
+        const idValidation = getRequiredValidation(true, entry.id);
+        const amountValidation = getRequiredValidation(true, entry.amount);
+        rows += `
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                <input type="text"
+                       class="array-input${idValidation.invalidClass}"
+                       value="${escapeAttr(entry.id || '')}"
+                       placeholder="ID"
+                       onchange="updateTaskEntry(${groupIndex}, ${itemIndex}, '${kind}', ${entryIndex}, 'id', this.value)">
+                <input type="number"
+                       class="array-input${amountValidation.invalidClass}"
+                       style="flex: 0 0 110px;"
+                       value="${typeof entry.amount === 'number' ? entry.amount : ''}"
+                       placeholder="Amount"
+                       onchange="updateTaskEntry(${groupIndex}, ${itemIndex}, '${kind}', ${entryIndex}, 'amount', this.value)">
+                <button class="btn btn-danger" style="font-size: 11px; padding: 5px 10px;" onclick="removeTaskEntry(${groupIndex}, ${itemIndex}, '${kind}', ${entryIndex})">×</button>
+            </div>
+        `;
+    });
+
+    return `
+        <div>
+            <h4 style="margin-bottom: 8px; color: #34495e; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">${formatLabel(kind)}${infoBtnHtml('tasks.items.' + kind)}</h4>
+            ${rows}
+            <button class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;" onclick="addTaskEntry(${groupIndex}, ${itemIndex}, '${kind}')">Add ${kind === 'targets' ? 'Target' : 'Reward'}</button>
+        </div>
+    `;
+}
+
+function addTaskGroup() {
+    if (!config.tasks) config.tasks = [];
+
+    config.tasks.push({ id: '', type: 'daily', items: [] });
+    renderTasks();
+    updateJsonOutput();
+}
+
+function removeTaskGroup(groupIndex) {
+    config.tasks.splice(groupIndex, 1);
+    renderTasks();
+    updateJsonOutput();
+}
+
+function updateTaskGroupField(groupIndex, field, value) {
+    const group = config.tasks[groupIndex];
+    if (!group) return;
+
+    group[field] = value;
+    renderTasks();
+    updateJsonOutput();
+}
+
+function addTaskItem(groupIndex) {
+    const group = config.tasks[groupIndex];
+    if (!group) return;
+
+    if (!Array.isArray(group.items)) group.items = [];
+    group.items.push({ id: '', targets: [], rewards: [] });
+    renderTaskItems(groupIndex);
+    updateJsonOutput();
+}
+
+function removeTaskItem(groupIndex, itemIndex) {
+    const group = config.tasks[groupIndex];
+    if (!group || !Array.isArray(group.items)) return;
+
+    group.items.splice(itemIndex, 1);
+    renderTaskItems(groupIndex);
+    updateJsonOutput();
+}
+
+function updateTaskItemId(groupIndex, itemIndex, value) {
+    const item = config.tasks[groupIndex] && config.tasks[groupIndex].items[itemIndex];
+    if (!item) return;
+
+    item.id = value;
+    renderTaskItems(groupIndex);
+    updateJsonOutput();
+}
+
+function addTaskEntry(groupIndex, itemIndex, kind) {
+    const item = config.tasks[groupIndex] && config.tasks[groupIndex].items[itemIndex];
+    if (!item) return;
+
+    if (!Array.isArray(item[kind])) item[kind] = [];
+    item[kind].push({ id: '', amount: 1 });
+    renderTaskItems(groupIndex);
+    updateJsonOutput();
+}
+
+function removeTaskEntry(groupIndex, itemIndex, kind, entryIndex) {
+    const item = config.tasks[groupIndex] && config.tasks[groupIndex].items[itemIndex];
+    if (!item || !Array.isArray(item[kind])) return;
+
+    item[kind].splice(entryIndex, 1);
+    renderTaskItems(groupIndex);
+    updateJsonOutput();
+}
+
+function updateTaskEntry(groupIndex, itemIndex, kind, entryIndex, field, value) {
+    const item = config.tasks[groupIndex] && config.tasks[groupIndex].items[itemIndex];
+    const entry = item && Array.isArray(item[kind]) && item[kind][entryIndex];
+    if (!entry) return;
+
+    if (field === 'amount') {
+        if (value === '') {
+            delete entry.amount;
+        } else {
+            const parsed = Number(value);
+            if (Number.isNaN(parsed)) return;
+            entry.amount = parsed;
+        }
+    } else {
+        entry[field] = value;
+    }
+
+    renderTaskItems(groupIndex);
+    updateJsonOutput();
+}
+
+// ---------- Achievements ----------
+
+function getAchievementPlatformKeys(achievementSchema) {
+    return Object.keys(achievementSchema.properties).filter((key) => !['id', 'name', 'description'].includes(key));
+}
+
+function renderAchievements() {
+    const container = document.getElementById('achievementsContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!config.achievements) {
+        config.achievements = [];
+    }
+
+    const achievementSchema = resolveRef(schema.properties.achievements.items, schema);
+    const platformKeys = getAchievementPlatformKeys(achievementSchema);
+
+    config.achievements.forEach((achievement, index) => {
+        const achievementDiv = document.createElement('div');
+        achievementDiv.className = 'array-item';
+        achievementDiv.style.flexDirection = 'column';
+        achievementDiv.style.alignItems = 'stretch';
+        achievementDiv.style.gap = '15px';
+        achievementDiv.style.padding = '15px';
+        achievementDiv.style.border = '1px solid #ddd';
+        achievementDiv.style.borderRadius = '6px';
+        achievementDiv.style.background = '#fafafa';
+
+        const idValidation = getRequiredValidation(true, achievement.id);
+        let html = `
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="flex: 1;">
+                    <label class="field-label">Achievement ID *${infoBtnHtml('achievements.id')}</label>
+                    <input type="text"
+                           class="field-input${idValidation.invalidClass}"
+                           value="${escapeAttr(achievement.id || '')}"
+                           onchange="updateAchievementField(${index}, 'id', this.value)"
+                           placeholder="Achievement ID">
+                    ${idValidation.errorHtml}
+                </div>
+                <button class="btn btn-danger" onclick="removeAchievement(${index})" style="margin-top: 20px;">Remove</button>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <label class="field-label">Name${infoBtnHtml('achievements.name')}</label>
+                    <input type="text"
+                           class="field-input"
+                           value="${escapeAttr(achievement.name || '')}"
+                           onchange="updateAchievementField(${index}, 'name', this.value)">
+                </div>
+                <div style="flex: 1;">
+                    <label class="field-label">Description${infoBtnHtml('achievements.description')}</label>
+                    <input type="text"
+                           class="field-input"
+                           value="${escapeAttr(achievement.description || '')}"
+                           onchange="updateAchievementField(${index}, 'description', this.value)">
+                </div>
+            </div>
+        `;
+
+        let mappingsHtml = '';
+        let addButtonsHtml = '';
+        for (const platformName of platformKeys) {
+            const platformSchema = achievementSchema.properties[platformName];
+            const mapping = achievement[platformName];
+
+            if (!mapping) {
+                addButtonsHtml += `<button class="btn btn-primary" onclick="addAchievementPlatform(${index}, '${platformName}')" style="font-size: 12px; padding: 6px 12px;">Add ${formatLabel(platformName)} Mapping</button>`;
+                continue;
+            }
+
+            let fields = '';
+            for (const [fieldName, fieldSchema] of Object.entries(platformSchema.properties || {})) {
+                const isRequired = platformSchema.required && platformSchema.required.includes(fieldName);
+                const v = getRequiredValidation(isRequired, mapping[fieldName]);
+                fields += `
+                    <div style="margin-bottom: 4px;">
+                        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555;">
+                            ${formatLabel(fieldName)}${isRequired ? ' *' : ''}${infoBtnHtml('achievements.' + platformName + '.' + fieldName)}
+                        </label>
+                        <input type="text"
+                               class="field-input${v.invalidClass}"
+                               value="${escapeAttr(mapping[fieldName] || '')}"
+                               onchange="updateAchievementPlatformField(${index}, '${platformName}', '${fieldName}', this.value)"
+                               style="width: 100%;">
+                        ${v.errorHtml}
+                    </div>
+                `;
+            }
+
+            mappingsHtml += `
+                <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px; background: white; border-radius: 6px; border: 1px solid #e0e0e0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h4 style="margin: 0; color: #2c3e50; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">${formatLabel(platformName)}${infoBtnHtml('achievements.' + platformName)}</h4>
+                        <button class="btn btn-danger" onclick="removeAchievementPlatform(${index}, '${platformName}')" style="font-size: 11px; padding: 5px 10px;">Remove</button>
+                    </div>
+                    ${fields}
+                </div>
+            `;
+        }
+
+        html += `
+            <div>
+                <h4 style="margin-bottom: 10px; color: #34495e; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">Platform Mappings${infoBtnHtml('achievements')}</h4>
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">${mappingsHtml}</div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">${addButtonsHtml}</div>
+            </div>
+        `;
+
+        achievementDiv.innerHTML = html;
+        container.appendChild(achievementDiv);
+    });
+}
+
+function addAchievement() {
+    if (!config.achievements) config.achievements = [];
+
+    config.achievements.push({ id: '' });
+    renderAchievements();
+    updateJsonOutput();
+}
+
+function removeAchievement(index) {
+    config.achievements.splice(index, 1);
+    renderAchievements();
+    updateJsonOutput();
+}
+
+function updateAchievementField(index, field, value) {
+    const achievement = config.achievements[index];
+    if (!achievement) return;
+
+    if (field === 'id') {
+        achievement.id = value;
+    } else if (value && value.trim() !== '') {
+        achievement[field] = value;
+    } else {
+        delete achievement[field];
+    }
+
+    renderAchievements();
+    updateJsonOutput();
+}
+
+function addAchievementPlatform(index, platformName) {
+    const achievement = config.achievements[index];
+    if (!achievement) return;
+
+    const achievementSchema = resolveRef(schema.properties.achievements.items, schema);
+    const platformSchema = achievementSchema.properties[platformName];
+    if (!platformSchema) return;
+
+    achievement[platformName] = buildDefaultValue(platformSchema, schema);
+    renderAchievements();
+    updateJsonOutput();
+}
+
+function removeAchievementPlatform(index, platformName) {
+    const achievement = config.achievements[index];
+    if (!achievement) return;
+
+    delete achievement[platformName];
+    renderAchievements();
+    updateJsonOutput();
+}
+
+function updateAchievementPlatformField(index, platformName, field, value) {
+    const mapping = config.achievements[index] && config.achievements[index][platformName];
+    if (!mapping) return;
+
+    mapping[field] = value;
+    renderAchievements();
+    updateJsonOutput();
+}
+
 function formatLabel(str) {
     return str
         .replace(/_/g, ' ')
@@ -1763,77 +2432,82 @@ function resolveRef(propertySchema, rootSchema) {
     return propertySchema;
 }
 
-function isPlatformEmpty(platform) {
-    for (const [fieldName, fieldValue] of Object.entries(platform)) {
-        if (typeof fieldValue === 'string' && fieldValue.trim() !== '') {
-            return false;
-        }
+// Returns the sub-schema for an object property, honoring properties,
+// patternProperties and additionalProperties. Returns null when unknown.
+function getChildSchema(objectSchema, key) {
+    if (!objectSchema) return null;
 
-        if (typeof fieldValue === 'boolean' && fieldValue === true) {
-            return false;
-        }
+    if (objectSchema.properties && objectSchema.properties[key]) {
+        return resolveRef(objectSchema.properties[key], schema);
+    }
 
-        if (typeof fieldValue === 'number' && fieldValue !== 0) {
-            return false;
+    if (objectSchema.patternProperties) {
+        for (const [pattern, childSchema] of Object.entries(objectSchema.patternProperties)) {
+            if (new RegExp(pattern).test(key)) {
+                return resolveRef(childSchema, schema);
+            }
         }
     }
 
-    return true;
+    if (objectSchema.additionalProperties && typeof objectSchema.additionalProperties === 'object') {
+        return resolveRef(objectSchema.additionalProperties, schema);
+    }
+
+    return null;
+}
+
+// Builds the exported config: drops empty strings, NaN numbers, values equal
+// to their schema default (absent value means default in the SDK) and empty
+// objects/arrays. Values without a known schema are kept verbatim so manually
+// pasted platform overrides survive the round-trip.
+function filterConfigValue(value, valueSchema) {
+    if (typeof value === 'string') {
+        if (value.trim() === '') return undefined;
+        if (valueSchema && value === valueSchema.default) return undefined;
+        return value;
+    }
+
+    if (typeof value === 'boolean') {
+        if (valueSchema && valueSchema.type === 'boolean' && value === (valueSchema.default ?? false)) {
+            return undefined;
+        }
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        if (Number.isNaN(value)) return undefined;
+        if (valueSchema && value === valueSchema.default) return undefined;
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        const itemSchema = valueSchema && valueSchema.items ? resolveRef(valueSchema.items, schema) : null;
+        const filtered = value
+            .map((item) => filterConfigValue(item, itemSchema))
+            .filter((item) => item !== undefined);
+        return filtered.length > 0 ? filtered : undefined;
+    }
+
+    if (typeof value === 'object' && value !== null) {
+        const result = {};
+        for (const [key, childValue] of Object.entries(value)) {
+            const childSchema = getChildSchema(valueSchema, key);
+            const filtered = (childSchema || valueSchema)
+                ? filterConfigValue(childValue, childSchema)
+                : JSON.parse(JSON.stringify(childValue));
+
+            if (filtered !== undefined) {
+                result[key] = filtered;
+            }
+        }
+        return Object.keys(result).length > 0 ? result : undefined;
+    }
+
+    return value === null || value === undefined ? undefined : value;
 }
 
 function getFilteredConfig() {
-    const filteredConfig = JSON.parse(JSON.stringify(config));
-
-    if (filteredConfig.platforms) {
-        const filteredPlatforms = {};
-        for (const [platformName, platform] of Object.entries(filteredConfig.platforms)) {
-            if (!isPlatformEmpty(platform)) {
-                filteredPlatforms[platformName] = platform;
-            }
-        }
-        filteredConfig.platforms = filteredPlatforms;
-    }
-
-    function removeFalseBooleans(obj) {
-        if (typeof obj !== 'object' || obj === null) {
-            return obj;
-        }
-
-        if (Array.isArray(obj)) {
-            return obj.map(removeFalseBooleans).filter(item => {
-                if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-                    return Object.keys(item).length > 0;
-                }
-                return true;
-            });
-        }
-
-        const result = {};
-        for (const [key, value] of Object.entries(obj)) {
-            if (typeof value === 'boolean' && value === false) {
-                if (key === 'sendAnalyticsEvents') {
-                    result[key] = value;
-                }
-                continue;
-            } else if (typeof value === 'string' && value.trim() === '') {
-                continue;
-            } else if (typeof value === 'object' && value !== null) {
-                const filteredValue = removeFalseBooleans(value);
-                if (Array.isArray(filteredValue)) {
-                    if (filteredValue.length > 0) {
-                        result[key] = filteredValue;
-                    }
-                } else if (Object.keys(filteredValue).length > 0) {
-                    result[key] = filteredValue;
-                }
-            } else {
-                result[key] = value;
-            }
-        }
-        return result;
-    }
-
-    return removeFalseBooleans(filteredConfig);
+    return filterConfigValue(config, schema) || {};
 }
 
 function updateJsonOutput() {
@@ -1882,8 +2556,8 @@ function countAdvertisementMissing() {
     let total = 0;
 
     const adUnitTypes = Object.keys(adSchema.properties).filter((key) => {
-        const propSchema = adSchema.properties[key];
-        return propSchema && propSchema.$ref === '#/definitions/adUnit';
+        const resolved = resolveRef(adSchema.properties[key], schema);
+        return resolved && resolved.properties && resolved.properties.placements;
     });
 
     for (const adType of adUnitTypes) {
@@ -1941,6 +2615,88 @@ function countLeaderboardsMissing() {
     return total;
 }
 
+function countCrossPromoMissing() {
+    const games = (config.crossPromo && Array.isArray(config.crossPromo.games)) ? config.crossPromo.games : [];
+
+    let total = 0;
+    for (const game of games) {
+        if (!game || isMissingRequiredValue(game.url)) total += 1;
+    }
+
+    return total;
+}
+
+function countDailyRewardsMissing() {
+    const dailyRewards = config.dailyRewards;
+    if (!dailyRewards) return 0;
+
+    const rewards = Array.isArray(dailyRewards.rewards) ? dailyRewards.rewards : [];
+
+    let total = 0;
+    for (const reward of rewards) {
+        if (isMissingRequiredValue(reward)) total += 1;
+    }
+
+    // The section is meaningless without rewards; flag it when other fields are set
+    const sectionUsed = rewards.length > 0
+        || dailyRewards.cycle === false
+        || dailyRewards.resetOnMiss === false;
+    if (sectionUsed && rewards.length === 0) total += 1;
+
+    return total;
+}
+
+function countTasksMissing() {
+    if (!Array.isArray(config.tasks)) return 0;
+
+    let total = 0;
+    for (const group of config.tasks) {
+        if (!group) continue;
+        if (isMissingRequiredValue(group.id)) total += 1;
+        if (isMissingRequiredValue(group.type)) total += 1;
+
+        for (const item of (Array.isArray(group.items) ? group.items : [])) {
+            if (!item) continue;
+            if (isMissingRequiredValue(item.id)) total += 1;
+
+            for (const kind of ['targets', 'rewards']) {
+                for (const entry of (Array.isArray(item[kind]) ? item[kind] : [])) {
+                    if (!entry) continue;
+                    if (isMissingRequiredValue(entry.id)) total += 1;
+                    if (isMissingRequiredValue(entry.amount)) total += 1;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+function countAchievementsMissing() {
+    if (!Array.isArray(config.achievements)) return 0;
+
+    const achievementSchema = resolveRef(schema.properties.achievements.items, schema);
+    const platformKeys = getAchievementPlatformKeys(achievementSchema);
+
+    let total = 0;
+    for (const achievement of config.achievements) {
+        if (!achievement) continue;
+        if (isMissingRequiredValue(achievement.id)) total += 1;
+
+        for (const platformName of platformKeys) {
+            const mapping = achievement[platformName];
+            if (!mapping) continue;
+
+            const platformSchema = achievementSchema.properties[platformName];
+            for (const fieldName of (platformSchema.required || [])) {
+                if (isMissingRequiredValue(mapping[fieldName])) total += 1;
+            }
+        }
+    }
+
+    return total;
+}
+
 function setRequiredPill(elementId, count) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -1956,6 +2712,10 @@ function setRequiredPill(elementId, count) {
 function updateRequiredPills() {
     setRequiredPill('platformsRequiredPill', countPlatformsMissing());
     setRequiredPill('advertisementRequiredPill', countAdvertisementMissing());
+    setRequiredPill('crossPromoRequiredPill', countCrossPromoMissing());
+    setRequiredPill('dailyRewardsRequiredPill', countDailyRewardsMissing());
+    setRequiredPill('tasksRequiredPill', countTasksMissing());
+    setRequiredPill('achievementsRequiredPill', countAchievementsMissing());
     setRequiredPill('paymentsRequiredPill', countPaymentsMissing());
     setRequiredPill('leaderboardsRequiredPill', countLeaderboardsMissing());
 }
