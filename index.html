@@ -362,6 +362,47 @@
                 font-size: 13px;
             }
 
+            /* Nested editors — advanced banners placements and conditions */
+            .nested-item {
+                padding: 15px;
+                margin-bottom: 10px;
+                background: var(--paper-3);
+                border: 1px solid var(--line);
+                border-radius: var(--r-md);
+            }
+
+            .nested-item-inner {
+                padding: 12px;
+                background: var(--paper-2);
+                border: 1px solid var(--line);
+                border-radius: var(--r-sm);
+            }
+
+            .banner-box {
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                padding: 10px;
+                background: var(--paper-3);
+                border: 1px solid var(--line);
+                border-radius: var(--r-sm);
+            }
+
+            .banner-box-grid {
+                flex: 1;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+                gap: 8px;
+            }
+
+            .overrides-textarea {
+                min-height: 90px;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                font-size: 12px;
+                line-height: 1.6;
+                resize: vertical;
+            }
+
             /* Buttons */
             .btn {
                 position: relative;
@@ -1081,6 +1122,16 @@
                     <button class="btn btn-primary" onclick="addLeaderboard()">Add Leaderboard</button>
                 </div>
 
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title" data-section-path="videoPreviews">Video Previews</h2>
+                        <span class="required-pill" id="videoPreviewsRequiredPill" hidden></span>
+                    </div>
+                    <p class="section-description" id="videoPreviewsSectionDesc"></p>
+                    <div class="array-section" id="videoPreviewsContainer"></div>
+                    <button class="btn btn-primary" onclick="addVideoPreview()">Add Video Preview</button>
+                </div>
+
             </div>
 
             <div class="panel json-panel">
@@ -1121,7 +1172,7 @@
                 </div>
                 <div class="platform-selector-footer">
                     <div class="platform-selector-note">
-                        💡 <strong>Note:</strong> Only platforms that require configuration are listed here. If a platform doesn't need any settings, it won't appear in this list.
+                        💡 <strong>Note:</strong> Platforms without dedicated settings are listed too — add them to override root config sections (advertisement, device, cross promo, ...) for that platform only.
                     </div>
                     <button class="btn btn-danger" onclick="closePlatformSelector()">Close</button>
                 </div>

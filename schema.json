@@ -302,7 +302,7 @@
             "additionalProperties": false,
             "properties": {
                 "interstitial": {
-                    "$ref": "#/definitions/preloadableAdUnit"
+                    "$ref": "#/definitions/interstitialAdUnit"
                 },
                 "rewarded": {
                     "$ref": "#/definitions/preloadableAdUnit"
@@ -311,19 +311,7 @@
                     "$ref": "#/definitions/adUnit"
                 },
                 "advancedBanners": {
-                    "type": "object",
-                    "description": "Keys other than disable/placementFallback are placement names mapped to condition-driven banner configs (edit via JSON)",
-                    "properties": {
-                        "disable": {
-                            "type": "boolean"
-                        },
-                        "placementFallback": {
-                            "type": "string"
-                        }
-                    },
-                    "additionalProperties": {
-                        "type": "object"
-                    }
+                    "$ref": "#/definitions/advancedBanners"
                 },
                 "useBuiltInErrorPopup": {
                     "type": "boolean",
@@ -344,7 +332,7 @@
                 },
                 "initialInterstitialDelay": {
                     "type": "number",
-                    "description": "Delay in seconds before the first interstitial ad can be shown after game start"
+                    "description": "Delay in seconds before the first interstitial ad can be shown after game start. Leave empty to use the platform default (60 s on most platforms, 30 s on Xiaomi, 180 s on Y8)"
                 }
             }
         },
@@ -416,6 +404,13 @@
             "type": "array",
             "items": {
                 "$ref": "#/definitions/leaderboardItem"
+            }
+        },
+        "videoPreviews": {
+            "type": "array",
+            "description": "YouTube Playables only: video previews shown in the bottom-right corner while the game is loading. One entry is picked at random",
+            "items": {
+                "$ref": "#/definitions/videoPreview"
             }
         },
         "device": {
@@ -544,6 +539,139 @@
                     "items": {
                         "$ref": "#/definitions/adPlacement"
                     }
+                }
+            }
+        },
+        "interstitialAdUnit": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "placementFallback should match one of placements[].id",
+            "properties": {
+                "disable": {
+                    "type": "boolean",
+                    "description": "Disable this ad unit"
+                },
+                "placementFallback": {
+                    "type": "string"
+                },
+                "preloadOnStart": {
+                    "type": "string",
+                    "description": "Placement id to preload right after SDK initialization"
+                },
+                "autoShow": {
+                    "type": "array",
+                    "description": "SDK events that automatically request an interstitial. The event name is also used as the placement id",
+                    "items": {
+                        "$ref": "#/definitions/autoShowEvent"
+                    }
+                },
+                "placements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/adPlacement"
+                    }
+                }
+            }
+        },
+        "autoShowEvent": {
+            "type": "string",
+            "enum": [
+                "game_ready",
+                "level_started",
+                "level_completed",
+                "level_failed",
+                "level_paused",
+                "level_resumed",
+                "in_game_loading_started",
+                "in_game_loading_stopped",
+                "gameplay_started",
+                "gameplay_stopped",
+                "player_got_achievement",
+                "storage_set",
+                "visibility_state_visible"
+            ]
+        },
+        "advancedBanners": {
+            "type": "object",
+            "description": "Condition-driven banner sets. Keys other than disable/placementFallback are placement names",
+            "properties": {
+                "disable": {
+                    "type": "boolean",
+                    "description": "Disable advanced banners entirely"
+                },
+                "placementFallback": {
+                    "type": "string",
+                    "description": "Placement name used when advanced banners are requested without one"
+                }
+            },
+            "additionalProperties": {
+                "$ref": "#/definitions/advancedBannersPlacement"
+            }
+        },
+        "advancedBannersPlacement": {
+            "type": "object",
+            "description": "Banner sets of one placement keyed by condition; 'default' is used when no condition matches",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["show", "hide"],
+                    "default": "show",
+                    "description": "What the placement does when triggered"
+                },
+                "default": {
+                    "$ref": "#/definitions/advancedBannerList"
+                }
+            },
+            "additionalProperties": {
+                "$ref": "#/definitions/advancedBannerList"
+            }
+        },
+        "advancedBannerList": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/advancedBanner"
+            }
+        },
+        "advancedBanner": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "CSS box of a single banner container, any valid CSS length",
+            "properties": {
+                "width": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "string"
+                },
+                "top": {
+                    "type": "string"
+                },
+                "bottom": {
+                    "type": "string"
+                },
+                "left": {
+                    "type": "string"
+                },
+                "right": {
+                    "type": "string"
+                }
+            }
+        },
+        "videoPreview": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "image",
+                "videoId"
+            ],
+            "properties": {
+                "image": {
+                    "type": "string",
+                    "description": "Path to a thumbnail bundled with the game archive"
+                },
+                "videoId": {
+                    "type": "string",
+                    "description": "YouTube video id opened via ytgame.engagement.openYTContent"
                 }
             }
         },

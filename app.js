@@ -8,11 +8,24 @@ const SECTION_DESCRIPTION_TARGETS = [
     { path: 'achievements', elementId: 'achievementsSectionDesc' },
     { path: 'payments', elementId: 'paymentsSectionDesc' },
     { path: 'leaderboards', elementId: 'leaderboardsSectionDesc' },
+    { path: 'videoPreviews', elementId: 'videoPreviewsSectionDesc' },
     { path: 'saas', elementId: 'saasSectionDesc' }
 ];
 
 // SaaS features that support per-platform enablement via saas.<feature>.platforms
 const SAAS_FEATURES = ['leaderboards', 'social'];
+
+// Keys of advertisement.advancedBanners that are settings, everything else is a placement
+const ADVANCED_BANNERS_SETTING_KEYS = ['disable', 'placementFallback'];
+
+// Keys of an advanced banners placement that are settings, everything else is a condition
+const ADVANCED_BANNERS_PLACEMENT_SETTING_KEYS = ['action'];
+
+// Condition key applied when no other condition of the placement matches
+const ADVANCED_BANNERS_DEFAULT_CONDITION = 'default';
+
+// CSS box of a single advanced banner container
+const ADVANCED_BANNER_FIELDS = ['width', 'height', 'top', 'bottom', 'left', 'right'];
 
 // All known platform ids, sourced from the schema
 function getAllPlatformIds() {
@@ -214,6 +227,49 @@ function getRequiredValidation(isRequired, value) {
     };
 }
 
+// ---------- Chip picker ----------
+
+// Renders a list of selected values as removable chips plus a picker for the rest.
+// `addHandler` is an inline JS expression, `removeHandler` builds one per value.
+function renderChipPicker({ label, infoPath, pickerId, selected, available, addLabel, addHandler, removeHandler }) {
+    const chipsHtml = selected.map((value) => `
+        <span class="chip">
+            ${formatLabel(value)}
+            <button type="button"
+                    class="chip-remove"
+                    aria-label="Remove ${escapeAttr(formatLabel(value))}"
+                    onclick="${escapeAttr(removeHandler(value))}">×</button>
+        </span>
+    `).join('');
+
+    const remaining = available.filter((value) => !selected.includes(value));
+
+    let pickerHtml = '';
+    if (remaining.length > 0) {
+        const options = remaining
+            .map((value) => `<option value="${escapeAttr(value)}">${formatLabel(value)}</option>`)
+            .join('');
+
+        pickerHtml = `
+            <div class="chip-picker">
+                <select id="${pickerId}" class="field-input chip-picker-select">
+                    <option value="">Select...</option>
+                    ${options}
+                </select>
+                <button type="button" class="btn btn-primary chip-add-btn" onclick="${escapeAttr(addHandler)}">${addLabel}</button>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="field-group">
+            <label class="field-label">${label}${infoBtnHtml(infoPath)}</label>
+            <div class="chip-list">${chipsHtml}</div>
+            ${pickerHtml}
+        </div>
+    `;
+}
+
 function applySectionDescriptions() {
     for (const target of SECTION_DESCRIPTION_TARGETS) {
         const element = document.getElementById(target.elementId);
@@ -316,14 +372,11 @@ function buildDefaultValue(propertySchema, rootSchema) {
         return '';
     }
 
-    if (propertySchema.type === 'number') {
-        return 0;
-    }
-
     if (propertySchema.type === 'boolean') {
         return false;
     }
 
+    // Numbers without a schema default stay unset so the SDK/platform default applies
     return null;
 }
 
@@ -365,6 +418,7 @@ function renderEditor() {
     renderSaas();
     renderPayments();
     renderLeaderboards();
+    renderVideoPreviews();
     updateRequiredPills();
 }
 
@@ -543,7 +597,6 @@ function renderPlatforms() {
 
     for (const platformName of addedPlatforms) {
         const platformSchema = platformsSchema.properties[platformName];
-        if (!platformSchema) continue;
 
         const platformDiv = document.createElement('div');
         platformDiv.className = 'platform-item';
@@ -555,7 +608,7 @@ function renderPlatforms() {
             </div>
         `;
 
-        if (platformSchema.properties) {
+        if (platformSchema && platformSchema.properties) {
             for (const [fieldName, fieldSchema] of Object.entries(platformSchema.properties)) {
                 const fieldValue = config.platforms[platformName][fieldName] ?? buildDefaultValue(fieldSchema, schema);
                 const isRequired = platformSchema.required && platformSchema.required.includes(fieldName);
@@ -570,9 +623,87 @@ function renderPlatforms() {
             }
         }
 
+        html += renderPlatformSectionOverrides(platformName);
+
         platformDiv.innerHTML = html;
         container.appendChild(platformDiv);
     }
+}
+
+// Keys of a platform section that are not its own settings: root config sections
+// (advertisement, device, crossPromo, ...) overridden for this platform only.
+function getPlatformSectionOverrides(platformName) {
+    const platformSchema = schema.properties.platforms.properties[platformName];
+    const ownFields = (platformSchema && platformSchema.properties) ? Object.keys(platformSchema.properties) : [];
+    const platformValue = (config.platforms && config.platforms[platformName]) || {};
+
+    const overrides = {};
+    for (const key of Object.keys(platformValue)) {
+        if (!ownFields.includes(key)) {
+            overrides[key] = platformValue[key];
+        }
+    }
+
+    return overrides;
+}
+
+function renderPlatformSectionOverrides(platformName) {
+    const overrides = getPlatformSectionOverrides(platformName);
+    const value = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
+
+    return `
+        <div class="field-group">
+            <label for="platformSectionOverrides_${platformName}" class="field-label">Section Overrides${infoBtnHtml('platforms.overrides')}</label>
+            <textarea id="platformSectionOverrides_${platformName}"
+                      class="field-input overrides-textarea"
+                      rows="4"
+                      placeholder='{ "advertisement": { "banner": { "disable": true } } }'
+                      onchange="updatePlatformSectionOverrides('${platformName}', this.value)">${escapeAttr(value)}</textarea>
+            <div class="field-error" id="platformSectionOverridesError_${platformName}" hidden></div>
+        </div>
+    `;
+}
+
+function updatePlatformSectionOverrides(platformName, rawValue) {
+    const errorElement = document.getElementById(`platformSectionOverridesError_${platformName}`);
+    const setError = (message) => {
+        if (!errorElement) return;
+        errorElement.textContent = message;
+        errorElement.hidden = message === '';
+    };
+
+    const text = rawValue.trim();
+    let overrides = {};
+
+    if (text !== '') {
+        try {
+            overrides = JSON.parse(text);
+        } catch (error) {
+            setError('Invalid JSON.');
+            return;
+        }
+
+        if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+            setError('Overrides must be a JSON object.');
+            return;
+        }
+    }
+
+    setError('');
+
+    if (!config.platforms) {
+        config.platforms = {};
+    }
+
+    const platformValue = config.platforms[platformName] || {};
+    for (const key of Object.keys(getPlatformSectionOverrides(platformName))) {
+        delete platformValue[key];
+    }
+
+    Object.assign(platformValue, overrides);
+    config.platforms[platformName] = platformValue;
+
+    updateJsonOutput();
 }
 
 function renderAdvertisement() {
@@ -627,7 +758,7 @@ function renderAdvertisement() {
 
         if (adTypeSchema.properties) {
             for (const [fieldName, fieldSchema] of Object.entries(adTypeSchema.properties)) {
-                if (fieldName === 'placements') {
+                if (fieldName === 'placements' || fieldName === 'autoShow') {
                     continue;
                 }
 
@@ -640,6 +771,20 @@ function renderAdvertisement() {
                     false
                 );
             }
+
+            if (adTypeSchema.properties.autoShow) {
+                const autoShowItemSchema = resolveRef(adTypeSchema.properties.autoShow.items, schema) || {};
+                html += renderChipPicker({
+                    label: 'Auto Show',
+                    infoPath: `advertisement.${adType}.autoShow`,
+                    pickerId: `${adType}AutoShowPicker`,
+                    selected: getAdAutoShow(adType),
+                    available: Array.isArray(autoShowItemSchema.enum) ? autoShowItemSchema.enum : [],
+                    addLabel: '+ Add event',
+                    addHandler: `addAdAutoShowFromPicker('${adType}')`,
+                    removeHandler: (value) => `removeAdAutoShow('${adType}', '${value}')`
+                });
+            }
         }
 
         html += `<div style="margin-top: 15px;">
@@ -651,9 +796,7 @@ function renderAdvertisement() {
         html += '</div>';
     }
 
-    // Advanced banners: only the flat fields are editable here, placement
-    // entries are free-form condition-driven objects edited via JSON upload
-    const advancedBannersSchema = adSchema.properties.advancedBanners;
+    const advancedBannersSchema = resolveRef(adSchema.properties.advancedBanners, schema);
     if (advancedBannersSchema && advancedBannersSchema.properties) {
         html += `<div class="field-group"><p style="margin-bottom: 10px; color: #34495e; display: inline-flex; align-items: center; gap: 6px;"><b>Advanced Banners</b>${infoBtnHtml('advertisement.advancedBanners')}</p>`;
 
@@ -668,6 +811,12 @@ function renderAdvertisement() {
             );
         }
 
+        html += `<div style="margin-top: 15px;">
+            <h4 style="margin-bottom: 10px; color: #34495e; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">Placements${infoBtnHtml('advertisement.advancedBanners.placements')}</h4>
+            <div id="advancedBannersPlacementsContainer" class="array-section"></div>
+            <button class="btn btn-primary" onclick="addAdvancedBannersPlacement()">Add Placement</button>
+        </div>`;
+
         html += '</div>';
     }
 
@@ -679,6 +828,335 @@ function renderAdvertisement() {
             renderPlacements(adType);
         }
     }
+
+    renderAdvancedBannersPlacements();
+}
+
+// ---------- Interstitial auto show ----------
+
+function getAdAutoShow(adType) {
+    const adUnit = config.advertisement && config.advertisement[adType];
+    return (adUnit && Array.isArray(adUnit.autoShow)) ? adUnit.autoShow.slice() : [];
+}
+
+function setAdAutoShow(adType, events) {
+    if (!config.advertisement[adType]) {
+        config.advertisement[adType] = {};
+    }
+
+    if (events.length === 0) {
+        delete config.advertisement[adType].autoShow;
+    } else {
+        config.advertisement[adType].autoShow = events;
+    }
+
+    cleanupEmptyObjects(config);
+    renderAdvertisement();
+    updateJsonOutput();
+}
+
+function addAdAutoShowFromPicker(adType) {
+    const picker = document.getElementById(`${adType}AutoShowPicker`);
+    if (!picker || !picker.value) return;
+
+    const events = getAdAutoShow(adType);
+    if (events.includes(picker.value)) return;
+
+    events.push(picker.value);
+    setAdAutoShow(adType, events);
+}
+
+function removeAdAutoShow(adType, event) {
+    setAdAutoShow(adType, getAdAutoShow(adType).filter((item) => item !== event));
+}
+
+// ---------- Advanced banners ----------
+
+function getAdvancedBanners() {
+    if (!config.advertisement) {
+        config.advertisement = {};
+    }
+
+    if (!config.advertisement.advancedBanners || typeof config.advertisement.advancedBanners !== 'object') {
+        config.advertisement.advancedBanners = {};
+    }
+
+    return config.advertisement.advancedBanners;
+}
+
+function getAdvancedBannersPlacementNames() {
+    return Object.keys(getAdvancedBanners()).filter((key) => !ADVANCED_BANNERS_SETTING_KEYS.includes(key));
+}
+
+function getAdvancedBannersConditionNames(placementName) {
+    const placement = getAdvancedBanners()[placementName];
+    if (!placement || typeof placement !== 'object' || Array.isArray(placement)) return [];
+
+    return Object.keys(placement).filter((key) => !ADVANCED_BANNERS_PLACEMENT_SETTING_KEYS.includes(key));
+}
+
+// Resolves a placement by its position in the rendered list.
+function resolveAdvancedBannersPlacement(placementIndex) {
+    const name = getAdvancedBannersPlacementNames()[placementIndex];
+    if (name === undefined) return null;
+
+    const placement = getAdvancedBanners()[name];
+    if (!placement || typeof placement !== 'object' || Array.isArray(placement)) return null;
+
+    return { name, placement };
+}
+
+// Resolves a condition of a placement by their positions in the rendered lists.
+function resolveAdvancedBannersCondition(placementIndex, conditionIndex) {
+    const resolved = resolveAdvancedBannersPlacement(placementIndex);
+    if (!resolved) return null;
+
+    const conditionName = getAdvancedBannersConditionNames(resolved.name)[conditionIndex];
+    if (conditionName === undefined) return null;
+
+    return { ...resolved, conditionName };
+}
+
+// Renames a key in place so the surrounding key order is preserved.
+function renameObjectKey(obj, oldKey, newKey) {
+    const entries = Object.entries(obj).map(([key, value]) => [key === oldKey ? newKey : key, value]);
+
+    Object.keys(obj).forEach((key) => delete obj[key]);
+    entries.forEach(([key, value]) => { obj[key] = value; });
+}
+
+function buildUniqueKey(existingKeys, base) {
+    let index = 1;
+    while (existingKeys.includes(`${base}_${index}`)) {
+        index += 1;
+    }
+
+    return `${base}_${index}`;
+}
+
+function renderAdvancedBannersPlacements() {
+    const container = document.getElementById('advancedBannersPlacementsContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const placementSchema = resolveRef(schema.definitions.advancedBannersPlacement, schema);
+    const actions = (placementSchema.properties.action && placementSchema.properties.action.enum) || [];
+
+    getAdvancedBannersPlacementNames().forEach((placementName, placementIndex) => {
+        const placement = getAdvancedBanners()[placementName] || {};
+        const action = placement.action || placementSchema.properties.action.default;
+
+        const placementDiv = document.createElement('div');
+        placementDiv.className = 'nested-item';
+
+        const actionOptions = actions
+            .map((option) => `<option value="${option}" ${action === option ? 'selected' : ''}>${formatLabel(option)}</option>`)
+            .join('');
+
+        let html = `
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <div style="flex: 1;">
+                    <label class="field-label">Placement Name${infoBtnHtml('advertisement.advancedBanners.placementName')}</label>
+                    <input type="text"
+                           class="field-input"
+                           value="${escapeAttr(placementName)}"
+                           placeholder="gameplay_started"
+                           onchange="renameAdvancedBannersPlacement(${placementIndex}, this.value)">
+                </div>
+                <div style="flex: 0 0 160px;">
+                    <label class="field-label">Action${infoBtnHtml('advertisement.advancedBanners.action')}</label>
+                    <select class="field-input" onchange="updateAdvancedBannersAction(${placementIndex}, this.value)">${actionOptions}</select>
+                </div>
+                <button class="btn btn-danger" onclick="removeAdvancedBannersPlacement(${placementIndex})" style="margin-top: 22px;">Remove</button>
+            </div>
+        `;
+
+        if (action !== 'hide') {
+            html += `
+                <div style="margin-top: 12px;">
+                    <h4 style="margin-bottom: 8px; color: #34495e; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">Conditions${infoBtnHtml('advertisement.advancedBanners.condition')}</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
+                        ${renderAdvancedBannersConditions(placementIndex, placementName)}
+                    </div>
+                    <button class="btn btn-primary" onclick="addAdvancedBannersCondition(${placementIndex})" style="font-size: 12px; padding: 6px 12px;">Add Condition</button>
+                </div>
+            `;
+        }
+
+        placementDiv.innerHTML = html;
+        container.appendChild(placementDiv);
+    });
+}
+
+function renderAdvancedBannersConditions(placementIndex, placementName) {
+    const placement = getAdvancedBanners()[placementName] || {};
+
+    return getAdvancedBannersConditionNames(placementName).map((conditionName, conditionIndex) => {
+        const banners = Array.isArray(placement[conditionName]) ? placement[conditionName] : [];
+
+        const bannersHtml = banners.map((banner, bannerIndex) => {
+            const fields = ADVANCED_BANNER_FIELDS.map((field) => `
+                <div>
+                    <label class="field-label" style="margin-bottom: 4px;">${formatLabel(field)}</label>
+                    <input type="text"
+                           class="field-input"
+                           style="font-size: 12px; padding: 6px 10px;"
+                           value="${escapeAttr(banner[field] || '')}"
+                           placeholder="auto"
+                           onchange="updateAdvancedBanner(${placementIndex}, ${conditionIndex}, ${bannerIndex}, '${field}', this.value)">
+                </div>
+            `).join('');
+
+            return `
+                <div class="banner-box">
+                    <div class="banner-box-grid">${fields}</div>
+                    <button class="btn btn-danger" onclick="removeAdvancedBanner(${placementIndex}, ${conditionIndex}, ${bannerIndex})" style="font-size: 11px; padding: 5px 10px; align-self: flex-start;">Remove Banner</button>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="nested-item-inner">
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <div style="flex: 1;">
+                        <label class="field-label">Condition</label>
+                        <input type="text"
+                               class="field-input"
+                               value="${escapeAttr(conditionName)}"
+                               placeholder="mobile:portrait"
+                               onchange="renameAdvancedBannersCondition(${placementIndex}, ${conditionIndex}, this.value)">
+                    </div>
+                    <button class="btn btn-danger" onclick="removeAdvancedBannersCondition(${placementIndex}, ${conditionIndex})" style="margin-top: 22px; font-size: 11px; padding: 5px 10px;">Remove</button>
+                </div>
+                <h4 style="margin: 10px 0 8px; color: #34495e; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">Banners${infoBtnHtml('advertisement.advancedBanners.banner')}</h4>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px;">${bannersHtml}</div>
+                <button class="btn btn-primary" onclick="addAdvancedBanner(${placementIndex}, ${conditionIndex})" style="font-size: 12px; padding: 6px 12px;">Add Banner</button>
+            </div>
+        `;
+    }).join('');
+}
+
+function addAdvancedBannersPlacement() {
+    const advancedBanners = getAdvancedBanners();
+    const name = buildUniqueKey(Object.keys(advancedBanners), 'placement');
+
+    advancedBanners[name] = { [ADVANCED_BANNERS_DEFAULT_CONDITION]: [] };
+    renderAdvancedBannersPlacements();
+    updateJsonOutput();
+}
+
+function removeAdvancedBannersPlacement(placementIndex) {
+    const resolved = resolveAdvancedBannersPlacement(placementIndex);
+    if (!resolved) return;
+
+    delete getAdvancedBanners()[resolved.name];
+    renderAdvancedBannersPlacements();
+    updateJsonOutput();
+}
+
+function renameAdvancedBannersPlacement(placementIndex, newName) {
+    const advancedBanners = getAdvancedBanners();
+    const resolved = resolveAdvancedBannersPlacement(placementIndex);
+    if (!resolved) return;
+
+    const name = newName.trim();
+    const isTaken = name === '' || name in advancedBanners || ADVANCED_BANNERS_SETTING_KEYS.includes(name);
+
+    if (name !== resolved.name && !isTaken) {
+        renameObjectKey(advancedBanners, resolved.name, name);
+        updateJsonOutput();
+    }
+
+    renderAdvancedBannersPlacements();
+}
+
+function updateAdvancedBannersAction(placementIndex, value) {
+    const resolved = resolveAdvancedBannersPlacement(placementIndex);
+    if (!resolved) return;
+
+    resolved.placement.action = value;
+    renderAdvancedBannersPlacements();
+    updateJsonOutput();
+}
+
+function addAdvancedBannersCondition(placementIndex) {
+    const resolved = resolveAdvancedBannersPlacement(placementIndex);
+    if (!resolved) return;
+
+    const { placement } = resolved;
+    const name = ADVANCED_BANNERS_DEFAULT_CONDITION in placement
+        ? buildUniqueKey(Object.keys(placement), 'condition')
+        : ADVANCED_BANNERS_DEFAULT_CONDITION;
+
+    placement[name] = [];
+    renderAdvancedBannersPlacements();
+    updateJsonOutput();
+}
+
+function removeAdvancedBannersCondition(placementIndex, conditionIndex) {
+    const resolved = resolveAdvancedBannersCondition(placementIndex, conditionIndex);
+    if (!resolved) return;
+
+    delete resolved.placement[resolved.conditionName];
+    renderAdvancedBannersPlacements();
+    updateJsonOutput();
+}
+
+function renameAdvancedBannersCondition(placementIndex, conditionIndex, newName) {
+    const resolved = resolveAdvancedBannersCondition(placementIndex, conditionIndex);
+    if (!resolved) return;
+
+    const { placement, conditionName } = resolved;
+    const name = newName.trim();
+    const isTaken = name === '' || name in placement || ADVANCED_BANNERS_PLACEMENT_SETTING_KEYS.includes(name);
+
+    if (name !== conditionName && !isTaken) {
+        renameObjectKey(placement, conditionName, name);
+        updateJsonOutput();
+    }
+
+    renderAdvancedBannersPlacements();
+}
+
+function addAdvancedBanner(placementIndex, conditionIndex) {
+    const resolved = resolveAdvancedBannersCondition(placementIndex, conditionIndex);
+    if (!resolved) return;
+
+    const { placement, conditionName } = resolved;
+    if (!Array.isArray(placement[conditionName])) {
+        placement[conditionName] = [];
+    }
+
+    placement[conditionName].push({});
+    renderAdvancedBannersPlacements();
+    updateJsonOutput();
+}
+
+function removeAdvancedBanner(placementIndex, conditionIndex, bannerIndex) {
+    const resolved = resolveAdvancedBannersCondition(placementIndex, conditionIndex);
+    if (!resolved || !Array.isArray(resolved.placement[resolved.conditionName])) return;
+
+    resolved.placement[resolved.conditionName].splice(bannerIndex, 1);
+    renderAdvancedBannersPlacements();
+    updateJsonOutput();
+}
+
+function updateAdvancedBanner(placementIndex, conditionIndex, bannerIndex, field, value) {
+    const resolved = resolveAdvancedBannersCondition(placementIndex, conditionIndex);
+    if (!resolved) return;
+
+    const banner = Array.isArray(resolved.placement[resolved.conditionName])
+        && resolved.placement[resolved.conditionName][bannerIndex];
+    if (!banner) return;
+
+    if (value && value.trim() !== '') {
+        banner[field] = value.trim();
+    } else {
+        delete banner[field];
+    }
+
+    updateJsonOutput();
 }
 
 function getKnownPlatformIds() {
@@ -736,42 +1214,17 @@ function renderSaas() {
         const selectedPlatforms = (saasValue[feature] && Array.isArray(saasValue[feature].platforms))
             ? saasValue[feature].platforms.slice()
             : [];
-        const remainingIds = knownIds.filter((id) => !selectedPlatforms.includes(id));
 
-        let chipsHtml = '';
-        if (selectedPlatforms.length > 0) {
-            chipsHtml = selectedPlatforms.map((id) => `
-                <span class="chip">
-                    ${formatLabel(id)}
-                    <button type="button"
-                            class="chip-remove"
-                            aria-label="Remove ${escapeAttr(formatLabel(id))}"
-                            onclick="removeSaasFeaturePlatform('${feature}', '${id}')">×</button>
-                </span>
-            `).join('');
-        }
-
-        let pickerHtml = '';
-        if (remainingIds.length > 0) {
-            let options = '<option value="">Select platform...</option>';
-            for (const id of remainingIds) {
-                options += `<option value="${id}">${formatLabel(id)}</option>`;
-            }
-            pickerHtml = `
-                <div class="chip-picker">
-                    <select id="saasPlatformPicker_${feature}" class="field-input chip-picker-select">${options}</select>
-                    <button type="button" class="btn btn-primary chip-add-btn" onclick="addSaasFeaturePlatformFromPicker('${feature}')">+ Add platform</button>
-                </div>
-            `;
-        }
-
-        html += `
-            <div class="field-group">
-                <label class="field-label">${formatLabel(feature)} Platforms${infoBtnHtml('saas.' + feature + '.platforms')}</label>
-                <div class="chip-list">${chipsHtml}</div>
-                ${pickerHtml}
-            </div>
-        `;
+        html += renderChipPicker({
+            label: `${formatLabel(feature)} Platforms`,
+            infoPath: `saas.${feature}.platforms`,
+            pickerId: `saasPlatformPicker_${feature}`,
+            selected: selectedPlatforms,
+            available: knownIds,
+            addLabel: '+ Add platform',
+            addHandler: `addSaasFeaturePlatformFromPicker('${feature}')`,
+            removeHandler: (id) => `removeSaasFeaturePlatform('${feature}', '${id}')`
+        });
     }
 
     container.innerHTML = html;
@@ -1067,6 +1520,10 @@ function cleanupEmptyObjects(obj) {
         return obj;
     }
 
+    // Platform entries survive while empty: the user added them explicitly and
+    // the exported config drops empty objects anyway.
+    const keepEmpty = obj === config.platforms;
+
     for (const key in obj) {
         if (obj.hasOwnProperty(key)) {
             const value = obj[key];
@@ -1074,7 +1531,7 @@ function cleanupEmptyObjects(obj) {
             if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
                 cleanupEmptyObjects(value);
 
-                if (Object.keys(value).length === 0) {
+                if (!keepEmpty && Object.keys(value).length === 0) {
                     delete obj[key];
                 }
             }
@@ -1812,6 +2269,78 @@ function removePlatformOverride(adType, placementIndex, platformName) {
 
     delete placement[platformName];
     renderPlatformOverrides(adType, placementIndex);
+    updateJsonOutput();
+}
+
+// ---------- Video Previews ----------
+
+function renderVideoPreviews() {
+    const container = document.getElementById('videoPreviewsContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!Array.isArray(config.videoPreviews)) {
+        config.videoPreviews = [];
+    }
+
+    config.videoPreviews.forEach((preview, index) => {
+        const imageValidation = getRequiredValidation(true, preview.image);
+        const videoIdValidation = getRequiredValidation(true, preview.videoId);
+
+        const previewDiv = document.createElement('div');
+        previewDiv.className = 'array-item';
+        previewDiv.style.alignItems = 'flex-start';
+        previewDiv.innerHTML = `
+            <div style="flex: 1;">
+                <label class="field-label">Image *${infoBtnHtml('videoPreviews.image')}</label>
+                <input type="text"
+                       class="field-input${imageValidation.invalidClass}"
+                       value="${escapeAttr(preview.image || '')}"
+                       placeholder="video-previews/preview.png"
+                       onchange="updateVideoPreview(${index}, 'image', this.value)">
+                ${imageValidation.errorHtml}
+            </div>
+            <div style="flex: 1;">
+                <label class="field-label">Video Id *${infoBtnHtml('videoPreviews.videoId')}</label>
+                <input type="text"
+                       class="field-input${videoIdValidation.invalidClass}"
+                       value="${escapeAttr(preview.videoId || '')}"
+                       placeholder="YouTube video id"
+                       onchange="updateVideoPreview(${index}, 'videoId', this.value)">
+                ${videoIdValidation.errorHtml}
+            </div>
+            <button class="btn btn-danger" onclick="removeVideoPreview(${index})" style="margin-top: 22px;">Remove</button>
+        `;
+
+        container.appendChild(previewDiv);
+    });
+}
+
+function addVideoPreview() {
+    if (!Array.isArray(config.videoPreviews)) {
+        config.videoPreviews = [];
+    }
+
+    config.videoPreviews.push({ image: '', videoId: '' });
+    renderVideoPreviews();
+    updateJsonOutput();
+}
+
+function removeVideoPreview(index) {
+    if (!Array.isArray(config.videoPreviews)) return;
+
+    config.videoPreviews.splice(index, 1);
+    renderVideoPreviews();
+    updateJsonOutput();
+}
+
+function updateVideoPreview(index, field, value) {
+    const preview = Array.isArray(config.videoPreviews) && config.videoPreviews[index];
+    if (!preview) return;
+
+    preview[field] = value;
+    renderVideoPreviews();
     updateJsonOutput();
 }
 
@@ -2615,6 +3144,19 @@ function countLeaderboardsMissing() {
     return total;
 }
 
+function countVideoPreviewsMissing() {
+    if (!Array.isArray(config.videoPreviews)) return 0;
+
+    let total = 0;
+    for (const preview of config.videoPreviews) {
+        if (!preview) continue;
+        if (isMissingRequiredValue(preview.image)) total += 1;
+        if (isMissingRequiredValue(preview.videoId)) total += 1;
+    }
+
+    return total;
+}
+
 function countCrossPromoMissing() {
     const games = (config.crossPromo && Array.isArray(config.crossPromo.games)) ? config.crossPromo.games : [];
 
@@ -2718,6 +3260,7 @@ function updateRequiredPills() {
     setRequiredPill('achievementsRequiredPill', countAchievementsMissing());
     setRequiredPill('paymentsRequiredPill', countPaymentsMissing());
     setRequiredPill('leaderboardsRequiredPill', countLeaderboardsMissing());
+    setRequiredPill('videoPreviewsRequiredPill', countVideoPreviewsMissing());
 }
 
 // ---------- Copy JSON to clipboard ----------
@@ -2867,7 +3410,9 @@ function renderPlatformList(filterText = '') {
         return;
     }
 
-    const availablePlatforms = Object.keys(platformsSchema.properties);
+    // Every platform can be added: those without dedicated settings still accept
+    // per-platform overrides of the root config sections.
+    const availablePlatforms = getKnownPlatformIds();
     const addedPlatforms = Object.keys(config.platforms || {});
 
     const filteredPlatforms = availablePlatforms.filter(platformName => {
@@ -2894,20 +3439,20 @@ function renderPlatformList(filterText = '') {
         platformDiv.className = `platform-option ${isAdded ? 'disabled' : ''}`;
         platformDiv.dataset.platformName = platformName;
 
-        const allFields = Object.keys(platformSchema.properties || {});
+        const allFields = Object.keys((platformSchema && platformSchema.properties) || {});
 
-        let description = '';
+        let description = 'Section overrides only';
         if (allFields.length > 0) {
             const fieldsList = allFields.slice(0, 3).map(f => formatLabel(f)).join(', ');
             const moreCount = allFields.length - 3;
-            description = fieldsList + (moreCount > 0 ? `, +${moreCount} more` : '');
+            description = `Settings: ${fieldsList}` + (moreCount > 0 ? `, +${moreCount} more` : '');
         }
 
         platformDiv.innerHTML = `
             <div class="platform-option-name">
                 ${formatLabel(platformName)}
             </div>
-            ${isAdded ? '<div class="platform-option-description">✓ Already added</div>' : (description ? `<div class="platform-option-description">Settings: ${description}</div>` : '')}
+            <div class="platform-option-description">${isAdded ? '✓ Already added' : description}</div>
         `;
 
         if (!isAdded) {
@@ -2974,7 +3519,7 @@ function selectPlatform(platformName) {
         config.platforms = {};
     }
 
-    config.platforms[platformName] = buildDefaultValue(platformSchema, schema);
+    config.platforms[platformName] = platformSchema ? buildDefaultValue(platformSchema, schema) : {};
 
     closePlatformSelector();
     renderPlatforms();

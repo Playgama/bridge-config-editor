@@ -47,6 +47,9 @@ window.FIELD_DESCRIPTIONS = {
     'platforms': {
         text: 'Platform-specific settings. Any root config section (advertisement, crossPromo, device, ...) can also be placed inside a platform section to override it for that platform only.',
     },
+    'platforms.overrides': {
+        text: 'Root config sections overridden for this platform only, as JSON. They are deep-merged over the root config once the platform is detected, e.g. { "advertisement": { "banner": { "disable": true } } }.',
+    },
     'platforms.game_distribution': {
         text: 'Settings for the GameDistribution platform.',
     },
@@ -240,7 +243,7 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Minimum delay in seconds between two interstitial ads. Default: 60.',
     },
     'advertisement.initialInterstitialDelay': {
-        text: 'Delay in seconds before the first interstitial ad can be shown after the game starts.',
+        text: 'Delay in seconds before the first interstitial ad can be shown after the game starts. Leave empty to use the platform default: 60 s on most platforms, 30 s on Xiaomi, 180 s on Y8.',
     },
     'advertisement.interstitial': {
         text: 'Interstitial ad unit configuration: placements and per-platform overrides.',
@@ -252,7 +255,7 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Banner ad unit configuration: placements and per-platform overrides.',
     },
     'advertisement.advancedBanners': {
-        text: 'Advanced banners: condition-driven banner configs keyed by placement name (e.g. "mobile:portrait", "w>800"). Placement entries are free-form — edit them via JSON upload.',
+        text: 'Advanced banners: sets of banner containers shown for a placement, picked by device and screen conditions. Supported on CrazyGames, MSN, Playgama and Standalone.',
     },
 
     // ----- Per-ad-unit fields -----
@@ -267,6 +270,9 @@ window.FIELD_DESCRIPTIONS = {
     },
     'advertisement.interstitial.disable': {
         text: 'Disable interstitial ads entirely.',
+    },
+    'advertisement.interstitial.autoShow': {
+        text: 'SDK events that automatically request an interstitial, with the event name used as the placement id. Platform messages fire on sendMessage(), "storage_set" on every storage write, "visibility_state_visible" when the game returns to the foreground.',
     },
 
     'advertisement.rewarded.preloadOnStart': {
@@ -293,10 +299,25 @@ window.FIELD_DESCRIPTIONS = {
     },
 
     'advertisement.advancedBanners.placementFallback': {
-        text: 'Placement name used when the requested placement is not available.',
+        text: 'Placement name used when advanced banners are requested without one.',
     },
     'advertisement.advancedBanners.disable': {
         text: 'Disable advanced banners entirely.',
+    },
+    'advertisement.advancedBanners.placements': {
+        text: 'Placements that trigger advanced banners. A placement fires when the game calls showAdvancedBanners() with its name, or when a platform message of that name is sent.',
+    },
+    'advertisement.advancedBanners.placementName': {
+        text: 'Name used to trigger this placement, e.g. a platform message like "gameplay_started" or any name you pass to showAdvancedBanners().',
+    },
+    'advertisement.advancedBanners.action': {
+        text: '"Show" displays the banners matching the current conditions, "Hide" removes the banners currently on screen.',
+    },
+    'advertisement.advancedBanners.condition': {
+        text: 'Conditions are segments joined by ":" — device type (desktop, mobile, tablet, tv), orientation (portrait, landscape), size (w>800, h<=600), aspect ratio (ar>1.5) and "canvas" to measure the game canvas instead of the window. The best-matching condition wins; "default" is used when none match.',
+    },
+    'advertisement.advancedBanners.banner': {
+        text: 'Position and size of one banner container, in any valid CSS length (e.g. 320px, 20%, 10vh). Empty fields are left to the browser.',
     },
 
     // ----- Ad placement -----
@@ -596,6 +617,17 @@ window.FIELD_DESCRIPTIONS = {
     },
     'leaderboards.youtube': {
         text: 'YouTube Playables leaderboard id. Get it from your YouTube partner contact.',
+    },
+
+    // ----- Video previews -----
+    'videoPreviews': {
+        text: 'YouTube Playables only: video previews shown in the bottom-right corner while the game is loading. One entry is picked at random and opens the video when clicked.',
+    },
+    'videoPreviews.image': {
+        text: 'Required. Path to a thumbnail bundled with the game archive, e.g. video-previews/preview.png.',
+    },
+    'videoPreviews.videoId': {
+        text: 'Required. YouTube video id opened when the preview is clicked.',
     },
 
     // ----- SaaS -----
