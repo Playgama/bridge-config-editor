@@ -996,17 +996,24 @@ function renderAdvancedBannersConditions(placementIndex, placementName) {
         const banners = Array.isArray(placement[conditionName]) ? placement[conditionName] : [];
 
         const bannersHtml = banners.map((banner, bannerIndex) => {
-            const fields = ADVANCED_BANNER_FIELDS.map((field) => `
-                <div>
-                    <label class="field-label" style="margin-bottom: 4px;">${formatLabel(field)}</label>
-                    <input type="text"
-                           class="field-input"
-                           style="font-size: 12px; padding: 6px 10px;"
-                           value="${escapeAttr(banner[field] || '')}"
-                           placeholder="auto"
-                           onchange="updateAdvancedBanner(${placementIndex}, ${conditionIndex}, ${bannerIndex}, '${field}', this.value)">
-                </div>
-            `).join('');
+            const fields = ADVANCED_BANNER_FIELDS.map((field) => {
+                const percent = parseFloat(banner[field]);
+
+                return `
+                    <div>
+                        <label class="field-label" style="margin-bottom: 4px;">${formatLabel(field)}</label>
+                        <div class="percent-input">
+                            <input type="number"
+                                   class="field-input"
+                                   step="any"
+                                   value="${Number.isNaN(percent) ? '' : percent}"
+                                   placeholder="auto"
+                                   onchange="updateAdvancedBanner(${placementIndex}, ${conditionIndex}, ${bannerIndex}, '${field}', this.value)">
+                            <span class="percent-suffix">%</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
             return `
                 <div class="banner-box">
@@ -1142,7 +1149,9 @@ function removeAdvancedBanner(placementIndex, conditionIndex, bannerIndex) {
     updateJsonOutput();
 }
 
-function updateAdvancedBanner(placementIndex, conditionIndex, bannerIndex, field, value) {
+// Banner boxes are only expressed as a percentage of the screen, so the entered
+// number is always stored with a % unit.
+function updateAdvancedBanner(placementIndex, conditionIndex, bannerIndex, field, rawValue) {
     const resolved = resolveAdvancedBannersCondition(placementIndex, conditionIndex);
     if (!resolved) return;
 
@@ -1150,10 +1159,11 @@ function updateAdvancedBanner(placementIndex, conditionIndex, bannerIndex, field
         && resolved.placement[resolved.conditionName][bannerIndex];
     if (!banner) return;
 
-    if (value && value.trim() !== '') {
-        banner[field] = value.trim();
-    } else {
+    const percent = parseFloat(rawValue);
+    if (Number.isNaN(percent)) {
         delete banner[field];
+    } else {
+        banner[field] = `${percent}%`;
     }
 
     updateJsonOutput();

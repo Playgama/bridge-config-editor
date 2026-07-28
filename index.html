@@ -395,6 +395,36 @@
                 gap: 8px;
             }
 
+            /* Percent-only field: numeric input with a fixed % suffix */
+            .percent-input {
+                position: relative;
+            }
+
+            .percent-input .field-input {
+                padding: 6px 26px 6px 10px;
+                font-size: 12px;
+                appearance: textfield;
+                -moz-appearance: textfield;
+            }
+
+            .percent-input .field-input::-webkit-outer-spin-button,
+            .percent-input .field-input::-webkit-inner-spin-button {
+                -webkit-appearance: none;
+                appearance: none;
+                margin: 0;
+            }
+
+            .percent-suffix {
+                position: absolute;
+                top: 50%;
+                right: 10px;
+                transform: translateY(-50%);
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--text-muted);
+                pointer-events: none;
+            }
+
             .overrides-textarea {
                 min-height: 90px;
                 font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;

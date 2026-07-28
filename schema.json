@@ -635,27 +635,31 @@
         "advancedBanner": {
             "type": "object",
             "additionalProperties": false,
-            "description": "CSS box of a single banner container, any valid CSS length",
+            "description": "Box of a single banner container, each side given as a percentage of the screen",
             "properties": {
                 "width": {
-                    "type": "string"
+                    "$ref": "#/definitions/percentLength"
                 },
                 "height": {
-                    "type": "string"
+                    "$ref": "#/definitions/percentLength"
                 },
                 "top": {
-                    "type": "string"
+                    "$ref": "#/definitions/percentLength"
                 },
                 "bottom": {
-                    "type": "string"
+                    "$ref": "#/definitions/percentLength"
                 },
                 "left": {
-                    "type": "string"
+                    "$ref": "#/definitions/percentLength"
                 },
                 "right": {
-                    "type": "string"
+                    "$ref": "#/definitions/percentLength"
                 }
             }
+        },
+        "percentLength": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?%$"
         },
         "videoPreview": {
             "type": "object",

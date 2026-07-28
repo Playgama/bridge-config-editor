@@ -317,7 +317,7 @@ window.FIELD_DESCRIPTIONS = {
         text: 'Conditions are segments joined by ":" — device type (desktop, mobile, tablet, tv), orientation (portrait, landscape), size (w>800, h<=600), aspect ratio (ar>1.5) and "canvas" to measure the game canvas instead of the window. The best-matching condition wins; "default" is used when none match.',
     },
     'advertisement.advancedBanners.banner': {
-        text: 'Position and size of one banner container, in any valid CSS length (e.g. 320px, 20%, 10vh). Empty fields are left to the browser.',
+        text: 'Position and size of one banner container, always as a percentage of the screen so banners scale with it. Empty fields are left to the browser.',
     },
 
     // ----- Ad placement -----
