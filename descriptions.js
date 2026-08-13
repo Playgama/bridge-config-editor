@@ -372,9 +372,6 @@ window.FIELD_DESCRIPTIONS = {
     'adPlacement.playgama': {
         text: 'Playgama ad placement id. Get it from your Playgama manager.',
     },
-    'adPlacement.playdeck': {
-        text: 'Playdeck ad placement id. Get it from the Playdeck developer dashboard.',
-    },
     'adPlacement.poki': {
         text: 'Poki ad placement id. Get it from the Poki for Developers dashboard.',
     },
@@ -544,29 +541,11 @@ window.FIELD_DESCRIPTIONS = {
     'payments.msn.id': {
         text: 'Required. MSN Games product id. Get it from your MSN Games partner contact.',
     },
-    'payments.playdeck': {
-        text: 'Per-product Playdeck override. Playdeck purchases are price-driven and need an amount.',
-    },
-    'payments.playdeck.amount': {
-        text: 'Required. Price in Telegram Stars charged for this product on Playdeck.',
-    },
-    'payments.playgama': {
-        text: 'Per-product Playgama override. Playgama purchases are price-driven and need an amount.',
-    },
-    'payments.playgama.amount': {
-        text: 'Required. Price in Gam charged for this product on Playgama.',
-    },
     'payments.portal': {
         text: 'Per-product white-label portal override. Configure when the portal product id differs from the Bridge id.',
     },
     'payments.portal.id': {
         text: 'Required. Portal product id. Get it from your portal operator.',
-    },
-    'payments.qa_tool': {
-        text: 'Per-product Playgama QA tool override used for internal testing of the purchase flow.',
-    },
-    'payments.qa_tool.amount': {
-        text: 'Required. Test price used by the QA tool to simulate purchases.',
     },
     'payments.reddit': {
         text: 'Per-product Reddit Games override. Configure when the Reddit product id differs from the Bridge id.',

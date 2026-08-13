@@ -469,7 +469,6 @@
                 "mock",
                 "msn",
                 "ok",
-                "playdeck",
                 "playgama",
                 "poki",
                 "portal",
@@ -732,9 +731,6 @@
                 "ok": {
                     "type": "string"
                 },
-                "playdeck": {
-                    "type": "string"
-                },
                 "playgama": {
                     "type": "string"
                 },
@@ -995,30 +991,6 @@
                         }
                     }
                 },
-                "playdeck": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "amount"
-                    ],
-                    "properties": {
-                        "amount": {
-                            "type": "number"
-                        }
-                    }
-                },
-                "playgama": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "amount"
-                    ],
-                    "properties": {
-                        "amount": {
-                            "type": "number"
-                        }
-                    }
-                },
                 "portal": {
                     "type": "object",
                     "additionalProperties": false,
@@ -1028,18 +1000,6 @@
                     "properties": {
                         "id": {
                             "type": "string"
-                        }
-                    }
-                },
-                "qa_tool": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                        "amount"
-                    ],
-                    "properties": {
-                        "amount": {
-                            "type": "number"
                         }
                     }
                 },
