@@ -1,5 +1,5 @@
 /* eslint-disable */
-// Human-readable help text for Playgama Bridge config fields (SDK v2).
+// Human-readable help text for Playgama Bridge config fields (SDK v2.1).
 // Keys are dot-paths matching the structure used by app.js.
 // Each entry: { text, link? } — keep text to 1–2 short sentences.
 window.FIELD_DESCRIPTIONS = {
@@ -596,6 +596,20 @@ window.FIELD_DESCRIPTIONS = {
     },
     'leaderboards.youtube': {
         text: 'YouTube Playables leaderboard id. Get it from your YouTube partner contact.',
+    },
+
+    // ----- Notifications -----
+    'notifications': {
+        text: 'List of notifications the game can schedule. Each item maps a Bridge notification id to the platform-specific notification identifier. Currently supported on MSN only.',
+    },
+    'notifications.id': {
+        text: 'Required. Bridge notification id you pass to bridge.notifications.schedule().',
+    },
+    'notifications.msn': {
+        text: 'MSN notification type, an integer from 0 to 15. Required to schedule this notification on MSN. Types 8, 9 and 10 are reserved for the built-in auto notifications unless they are disabled.',
+    },
+    'disableAutoNotifications': {
+        text: 'MSN only: disable the built-in re-engagement notifications the SDK schedules on start (after 1, 3 and 7 days). Turn it on to free types 8, 9 and 10 for your own notifications. Default: false.',
     },
 
     // ----- Video previews -----

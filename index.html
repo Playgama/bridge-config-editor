@@ -1057,7 +1057,7 @@
     <body>
         <div class="container">
             <div class="panel editor-panel">
-                <h1 class="panel-title">Playgama Bridge Config Editor [v2.0]</h1>
+                <h1 class="panel-title">Playgama Bridge Config Editor [v2.1]</h1>
 
                 <div class="section">
                     <h2 class="section-title">General</h2>
@@ -1150,6 +1150,17 @@
                     <p class="section-description" id="leaderboardsSectionDesc"></p>
                     <div class="array-section" id="leaderboardsContainer"></div>
                     <button class="btn btn-primary" onclick="addLeaderboard()">Add Leaderboard</button>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title" data-section-path="notifications">Notifications</h2>
+                        <span class="required-pill" id="notificationsRequiredPill" hidden></span>
+                    </div>
+                    <p class="section-description" id="notificationsSectionDesc"></p>
+                    <div id="notificationsSettingsContainer"></div>
+                    <div class="array-section" id="notificationsContainer"></div>
+                    <button class="btn btn-primary" onclick="addNotification()">Add Notification</button>
                 </div>
 
                 <div class="section">

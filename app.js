@@ -8,6 +8,7 @@ const SECTION_DESCRIPTION_TARGETS = [
     { path: 'achievements', elementId: 'achievementsSectionDesc' },
     { path: 'payments', elementId: 'paymentsSectionDesc' },
     { path: 'leaderboards', elementId: 'leaderboardsSectionDesc' },
+    { path: 'notifications', elementId: 'notificationsSectionDesc' },
     { path: 'videoPreviews', elementId: 'videoPreviewsSectionDesc' },
     { path: 'saas', elementId: 'saasSectionDesc' }
 ];
@@ -418,6 +419,7 @@ function renderEditor() {
     renderSaas();
     renderPayments();
     renderLeaderboards();
+    renderNotifications();
     renderVideoPreviews();
     updateRequiredPills();
 }
@@ -2016,6 +2018,183 @@ function selectLeaderboardPlatform(platformName) {
     updateJsonOutput();
 }
 
+// ---------- Notifications ----------
+
+// Platform mapping keys of a notification item, sourced from the schema
+function getNotificationPlatformKeys(notificationItemSchema) {
+    return Object.keys(notificationItemSchema.properties).filter((key) => key !== 'id');
+}
+
+function getNotificationItemSchema() {
+    return resolveRef(schema.properties.notifications.items, schema);
+}
+
+function renderNotifications() {
+    renderNotificationsSettings();
+
+    const container = document.getElementById('notificationsContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!Array.isArray(config.notifications)) {
+        config.notifications = [];
+    }
+
+    const notificationItemSchema = getNotificationItemSchema();
+    const platformKeys = getNotificationPlatformKeys(notificationItemSchema);
+
+    config.notifications.forEach((notification, index) => {
+        const notificationDiv = document.createElement('div');
+        notificationDiv.className = 'array-item';
+        notificationDiv.style.flexDirection = 'column';
+        notificationDiv.style.alignItems = 'stretch';
+        notificationDiv.style.gap = '15px';
+        notificationDiv.style.padding = '15px';
+        notificationDiv.style.border = '1px solid #ddd';
+        notificationDiv.style.borderRadius = '6px';
+        notificationDiv.style.background = '#fafafa';
+
+        const idValidation = getRequiredValidation(true, notification.id);
+        let html = `
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="flex: 1;">
+                    <label class="field-label">Notification ID *${infoBtnHtml('notifications.id')}</label>
+                    <input type="text"
+                           class="field-input${idValidation.invalidClass}"
+                           value="${escapeAttr(notification.id || '')}"
+                           onchange="updateNotificationField(${index}, 'id', this.value)"
+                           placeholder="Notification ID">
+                    ${idValidation.errorHtml}
+                </div>
+                <button class="btn btn-danger" onclick="removeNotification(${index})" style="margin-top: 20px;">Remove</button>
+            </div>
+        `;
+
+        if (platformKeys.length > 0) {
+            const rows = platformKeys
+                .map((platformName) => renderNotificationPlatformRow(index, platformName, notification[platformName]))
+                .join('');
+
+            html += `
+                <div style="margin-top: 10px;">
+                    <h4 style="margin-bottom: 10px; color: #34495e; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">Platform Mapping${infoBtnHtml('notifications')}</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">${rows}</div>
+                </div>
+            `;
+        }
+
+        notificationDiv.innerHTML = html;
+        container.appendChild(notificationDiv);
+    });
+}
+
+function renderNotificationsSettings() {
+    const container = document.getElementById('notificationsSettingsContainer');
+    if (!container) return;
+
+    const fieldSchema = schema.properties.disableAutoNotifications;
+    if (!fieldSchema) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const fieldValue = config.disableAutoNotifications ?? false;
+    container.innerHTML = renderField('disableAutoNotifications', 'disableAutoNotifications', fieldSchema, fieldValue, false);
+}
+
+// A platform maps a notification either to its own id or, on MSN, to a numeric type
+function renderNotificationPlatformRow(index, platformName, value) {
+    const platformSchema = getNotificationItemSchema().properties[platformName];
+    const isNumber = platformSchema.type === 'integer' || platformSchema.type === 'number';
+
+    let inputHtml;
+    if (isNumber) {
+        const min = platformSchema.minimum;
+        const max = platformSchema.maximum;
+        const placeholder = (min !== undefined && max !== undefined) ? `${min}-${max}` : 'Notification type';
+        inputHtml = `
+            <input type="number"
+                   class="field-input"
+                   value="${typeof value === 'number' ? value : ''}"
+                   ${min !== undefined ? `min="${min}"` : ''}
+                   ${max !== undefined ? `max="${max}"` : ''}
+                   onchange="updateNotificationPlatformValue(${index}, '${platformName}', this.value)"
+                   placeholder="${placeholder}"
+                   style="font-size: 12px; padding: 6px 10px;">
+        `;
+    } else {
+        inputHtml = `
+            <input type="text"
+                   class="field-input"
+                   value="${escapeAttr(value || '')}"
+                   onchange="updateNotificationPlatformValue(${index}, '${platformName}', this.value)"
+                   placeholder="Platform ID"
+                   style="font-size: 12px; padding: 6px 10px;">
+        `;
+    }
+
+    return `
+        <div style="display: flex; gap: 10px; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e0e0e0;">
+            <div style="flex: 0.4;">
+                <label style="display: block; font-size: 11px; font-weight: 500; color: #7f8c8d; margin-bottom: 4px;">Platform</label>
+                <div style="font-size: 13px; font-weight: 600; color: #2c3e50; display: inline-flex; align-items: center; gap: 6px;">${formatLabel(platformName)}${infoBtnHtml('notifications.' + platformName)}</div>
+            </div>
+            <div style="flex: 0.6;">
+                <label style="display: block; font-size: 11px; font-weight: 500; color: #7f8c8d; margin-bottom: 4px;">${isNumber ? 'Notification Type' : 'Notification ID'}</label>
+                ${inputHtml}
+            </div>
+        </div>
+    `;
+}
+
+function addNotification() {
+    if (!Array.isArray(config.notifications)) {
+        config.notifications = [];
+    }
+
+    config.notifications.push(buildDefaultValue(getNotificationItemSchema(), schema));
+    renderNotifications();
+    updateJsonOutput();
+}
+
+function removeNotification(index) {
+    if (!Array.isArray(config.notifications)) return;
+
+    config.notifications.splice(index, 1);
+    renderNotifications();
+    updateJsonOutput();
+}
+
+function updateNotificationField(index, field, value) {
+    const notification = Array.isArray(config.notifications) && config.notifications[index];
+    if (!notification) return;
+
+    notification[field] = value;
+    renderNotifications();
+    updateJsonOutput();
+}
+
+function updateNotificationPlatformValue(index, platformName, rawValue) {
+    const notification = Array.isArray(config.notifications) && config.notifications[index];
+    if (!notification) return;
+
+    const platformSchema = getNotificationItemSchema().properties[platformName];
+    const isNumber = platformSchema.type === 'integer' || platformSchema.type === 'number';
+
+    if (rawValue.trim() === '') {
+        delete notification[platformName];
+    } else if (isNumber) {
+        const parsed = Number(rawValue);
+        if (Number.isNaN(parsed)) return;
+        notification[platformName] = parsed;
+    } else {
+        notification[platformName] = rawValue;
+    }
+
+    updateJsonOutput();
+}
+
 function renderPlacements(adType) {
     const container = document.getElementById(`${adType}PlacementsContainer`);
     if (!container) return;
@@ -3154,6 +3333,18 @@ function countLeaderboardsMissing() {
     return total;
 }
 
+function countNotificationsMissing() {
+    if (!Array.isArray(config.notifications)) return 0;
+
+    let total = 0;
+    for (const notification of config.notifications) {
+        if (!notification) continue;
+        if (isMissingRequiredValue(notification.id)) total += 1;
+    }
+
+    return total;
+}
+
 function countVideoPreviewsMissing() {
     if (!Array.isArray(config.videoPreviews)) return 0;
 
@@ -3270,6 +3461,7 @@ function updateRequiredPills() {
     setRequiredPill('achievementsRequiredPill', countAchievementsMissing());
     setRequiredPill('paymentsRequiredPill', countPaymentsMissing());
     setRequiredPill('leaderboardsRequiredPill', countLeaderboardsMissing());
+    setRequiredPill('notificationsRequiredPill', countNotificationsMissing());
     setRequiredPill('videoPreviewsRequiredPill', countVideoPreviewsMissing());
 }
 

@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Playgama Bridge Config (v2)",
+    "title": "Playgama Bridge Config (v2.1)",
     "type": "object",
     "additionalProperties": false,
     "patternProperties": {
@@ -405,6 +405,17 @@
             "items": {
                 "$ref": "#/definitions/leaderboardItem"
             }
+        },
+        "notifications": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/notificationItem"
+            }
+        },
+        "disableAutoNotifications": {
+            "type": "boolean",
+            "default": false,
+            "description": "MSN only: disable the built-in re-engagement notifications scheduled by the SDK (types 8, 9 and 10)"
         },
         "videoPreviews": {
             "type": "array",
@@ -1071,6 +1082,26 @@
                 },
                 "youtube": {
                     "type": "string"
+                }
+            }
+        },
+        "notificationItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id"
+            ],
+            "description": "Notification configuration with game's notification ID and platform-specific mapping",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The game's notification identifier"
+                },
+                "msn": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 15,
+                    "description": "MSN notification type. Types 8, 9 and 10 are reserved for the built-in auto notifications unless disableAutoNotifications is enabled"
                 }
             }
         }
